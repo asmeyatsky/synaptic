@@ -2,74 +2,93 @@
 SynapticBridge Domain Layer
 
 Architectural Intent:
-- Core business logic for neural signal processing and BCI operations
+- Core business logic for MCP orchestration and CLE operations
 - All domain models are immutable to ensure consistency
 - Domain events used for cross-boundary communication
-- Ports defined here for external dependencies (adapters in infrastructure)
+- Ports defined here for external dependencies
 
 Bounded Contexts:
-1. Neural Signal Processing - signal acquisition and preprocessing
-2. Cognitive Classification - mental state interpretation
-3. Device Control - external device management
-4. User Management - user profiles and settings
+1. Tool Management - tool manifests, registry, capability contracts
+2. Execution Fabric - execution tokens, session management, audit
+3. Correction Learning Engine - patterns, corrections, predictive dispatch
+4. Routing Intelligence - intent mapping, chain planning
+5. Policy & Governance - OPA policies, drift detection
 
-Parallelization Notes:
-- Signal processing operations are parallelized across channels
-- Classification can run concurrently with signal acquisition
+Following skill2026.md principles.
 """
 
 from .entities import (
-    NeuralSignal,
-    CognitiveState,
-    Device,
-    User,
-    Session,
+    ToolManifest,
+    ExecutionSession,
+    Correction,
+    CorrectionPattern,
+    Policy,
+    AuditEvent,
+    ToolCall,
+    CapabilityType,
+    AuditLevel,
+    SessionStatus,
+    ToolCallStatus,
+    PolicyEffect,
+    PolicyScope,
 )
 from .value_objects import (
-    SignalChannel,
-    SignalSample,
-    ClassificationResult,
-    DeviceCommand,
-    DeviceStatus,
-    UserPreferences,
+    ExecutionToken,
+    ToolResult,
+    CorrectionScore,
+    IntentEmbedding,
+    PolicyRule,
 )
 from .events import (
     DomainEvent,
-    SignalAcquiredEvent,
-    ClassificationCompletedEvent,
-    DeviceCommandExecutedEvent,
+    ToolCalledEvent,
+    CorrectionCapturedEvent,
+    PolicyViolationEvent,
     SessionStartedEvent,
     SessionEndedEvent,
 )
 from .ports import (
-    SignalRepositoryPort,
-    CognitiveClassifierPort,
-    DeviceControllerPort,
-    UserRepositoryPort,
-    EventBusPort,
+    ToolRegistryPort,
+    ExecutionPort,
+    CorrectionStorePort,
+    PolicyEnginePort,
+    AuditLogPort,
+    IntentClassifierPort,
+    ChainPlannerPort,
+    DriftDetectorPort,
 )
 
 __all__ = [
-    "NeuralSignal",
-    "CognitiveState",
-    "Device",
-    "User",
-    "Session",
-    "SignalChannel",
-    "SignalSample",
-    "ClassificationResult",
-    "DeviceCommand",
-    "DeviceStatus",
-    "UserPreferences",
+    "ToolManifest",
+    "ExecutionSession",
+    "Correction",
+    "CorrectionPattern",
+    "Policy",
+    "AuditEvent",
+    "ToolCall",
+    "CapabilityType",
+    "AuditLevel",
+    "SessionStatus",
+    "ToolCallStatus",
+    "PolicyEffect",
+    "PolicyScope",
+    "ExecutionToken",
+    "ToolResult",
+    "CorrectionScore",
+    "IntentEmbedding",
+    "PolicyRule",
     "DomainEvent",
-    "SignalAcquiredEvent",
-    "ClassificationCompletedEvent",
-    "DeviceCommandExecutedEvent",
+    "ToolCalledEvent",
+    "CorrectionCapturedEvent",
+    "PolicyViolationEvent",
     "SessionStartedEvent",
     "SessionEndedEvent",
-    "SignalRepositoryPort",
-    "CognitiveClassifierPort",
-    "DeviceControllerPort",
-    "UserRepositoryPort",
-    "EventBusPort",
+    "ToolRegistryPort",
+    "ExecutionPort",
+    "CorrectionStorePort",
+    "PolicyEnginePort",
+    "AuditLogPort",
+    "IntentClassifierPort",
+    "ChainPlannerPort",
+    "DriftDetectorPort",
 ]

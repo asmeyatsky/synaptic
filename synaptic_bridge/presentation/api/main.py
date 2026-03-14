@@ -1,10 +1,7 @@
 """
-SynapticBridge Presentation Layer
+SynapticBridge Presentation Layer - FastAPI
 
-Architectural Intent:
-- API controllers interact with application layer only
-- No business logic in presentation layer
-- Follows skill2026.md layer separation principles
+REST API for SynapticBridge MCP orchestration platform.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -14,80 +11,105 @@ from typing import Any
 from synaptic_bridge.infrastructure.config import create_container
 from synaptic_bridge.infrastructure.mcp_servers import (
     SessionMCPServer,
-    DeviceMCPServer,
-    SignalMCPServer,
-    UserMCPServer,
+    ToolMCPServer,
+    CLEMPServer,
+    PolicyMCPServer,
 )
 
-app = FastAPI(title="SynapticBridge API", version="1.0.0")
+app = FastAPI(
+    title="SynapticBridge API",
+    version="1.0.0",
+    description="MCP Orchestration Platform with Correction Learning Engine",
+)
 
 container = create_container()
 
 session_server = SessionMCPServer(container)
-device_server = DeviceMCPServer(container)
-signal_server = SignalMCPServer(container)
-user_server = UserMCPServer(container)
+tool_server = ToolMCPServer(container)
+cle_server = CLEMPServer(container)
+policy_server = PolicyMCPServer(container)
 
 
 class CreateSessionRequest(BaseModel):
-    user_id: str
-    device_ids: list[str] = []
+    agent_id: str
+    created_by: str
 
 
-class StartSessionRequest(BaseModel):
+class ExecuteToolRequest(BaseModel):
     session_id: str
-
-
-class EndSessionRequest(BaseModel):
-    session_id: str
-
-
-class ConnectDeviceRequest(BaseModel):
-    device_id: str
-
-
-class DeviceCommandRequest(BaseModel):
-    device_id: str
-    command_type: str
+    tool_name: str
     parameters: dict = {}
+    intent: str
+
+
+class RegisterToolRequest(BaseModel):
+    tool_name: str
+    version: str
+    capabilities: list[str]
+    scope: str
+    ttl_seconds: int = 900
+    network_egress: bool = False
+    audit_level: str = "summary"
+    signature: str = ""
+
+
+class CaptureCorrectionRequest(BaseModel):
+    session_id: str
+    agent_id: str
+    original_intent: str
+    inferred_context: str
+    original_tool: str
+    corrected_tool: str
+    correction_metadata: dict = {}
+    operator_identity: str
+    confidence_before: float
+    confidence_after: float
+
+
+class AddPolicyRequest(BaseModel):
+    name: str
+    description: str
+    rego_code: str
+    effect: str
+    scope: str
+    tags: list[str] = []
 
 
 @app.get("/")
 async def root():
-    return {"message": "SynapticBridge API", "version": "1.0.0"}
+    return {
+        "name": "SynapticBridge",
+        "version": "1.0.0",
+        "description": "MCP Orchestration Platform with Correction Learning Engine",
+    }
 
 
 @app.post("/sessions")
 async def create_session(request: CreateSessionRequest):
-    """Create a new recording session."""
+    """Create a new agent execution session."""
     try:
         result = await session_server.create_session(
-            user_id=request.user_id,
-            device_ids=request.device_ids,
+            agent_id=request.agent_id,
+            created_by=request.created_by,
         )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/sessions/start")
-async def start_session(request: StartSessionRequest):
-    """Start an existing session."""
+@app.post("/execute")
+async def execute_tool(request: ExecuteToolRequest):
+    """Execute a tool with policy checks and CLE."""
     try:
-        result = await session_server.start_session(session_id=request.session_id)
+        result = await session_server.execute_tool(
+            session_id=request.session_id,
+            tool_name=request.tool_name,
+            parameters=request.parameters,
+            intent=request.intent,
+        )
         return result
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/sessions/end")
-async def end_session(request: EndSessionRequest):
-    """End an active session."""
-    try:
-        result = await session_server.end_session(session_id=request.session_id)
-        return result
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -103,53 +125,70 @@ async def get_session(session_id: str):
     return result
 
 
-@app.get("/users/{user_id}/sessions")
-async def list_user_sessions(user_id: str):
-    """List all sessions for a user."""
-    result = await session_server.list_user_sessions(user_id)
-    return result
-
-
-@app.post("/devices/connect")
-async def connect_device(request: ConnectDeviceRequest):
-    """Connect to a device."""
+@app.post("/tools")
+async def register_tool(request: RegisterToolRequest):
+    """Register a new tool manifest."""
     try:
-        result = await device_server.connect_device(device_id=request.device_id)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/devices/disconnect")
-async def disconnect_device(request: ConnectDeviceRequest):
-    """Disconnect from a device."""
-    try:
-        result = await device_server.disconnect_device(device_id=request.device_id)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/devices/command")
-async def send_device_command(request: DeviceCommandRequest):
-    """Send a command to a device."""
-    try:
-        result = await device_server.send_device_command(
-            device_id=request.device_id,
-            command_type=request.command_type,
-            parameters=request.parameters,
+        result = await tool_server.register_tool(
+            tool_name=request.tool_name,
+            version=request.version,
+            capabilities=request.capabilities,
+            scope=request.scope,
+            ttl_seconds=request.ttl_seconds,
+            network_egress=request.network_egress,
+            audit_level=request.audit_level,
+            signature=request.signature,
         )
         return result
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/users/{user_id}")
-async def get_user(user_id: str):
-    """Get user by ID."""
-    result = await user_server.get_user(user_id)
-    if result is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    return result
+@app.get("/tools")
+async def list_tools():
+    """List all registered tools."""
+    return await tool_server.list_tools()
+
+
+@app.post("/corrections")
+async def capture_correction(request: CaptureCorrectionRequest):
+    """Capture a human override/correction."""
+    try:
+        result = await cle_server.capture_correction(
+            session_id=request.session_id,
+            agent_id=request.agent_id,
+            original_intent=request.original_intent,
+            inferred_context=request.inferred_context,
+            original_tool=request.original_tool,
+            corrected_tool=request.corrected_tool,
+            correction_metadata=request.correction_metadata,
+            operator_identity=request.operator_identity,
+            confidence_before=request.confidence_before,
+            confidence_after=request.confidence_after,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/policies")
+async def add_policy(request: AddPolicyRequest):
+    """Add a new OPA policy."""
+    try:
+        result = await policy_server.add_policy(
+            name=request.name,
+            description=request.description,
+            rego_code=request.rego_code,
+            effect=request.effect,
+            scope=request.scope,
+            tags=request.tags,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/policies")
+async def list_policies():
+    """List all policies."""
+    return await policy_server.list_policies()

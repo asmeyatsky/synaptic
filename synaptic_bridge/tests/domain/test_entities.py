@@ -6,253 +6,149 @@ Tests for all layers with appropriate mocking.
 """
 
 import pytest
-from unittest.mock import AsyncMock
-
-from synaptic_bridge.domain.entities import (
-    NeuralSignal,
-    CognitiveState,
-    CognitiveStateType,
-    Session,
-    SessionStatus,
-    Device,
-    DeviceType,
-    DeviceConnectionStatus,
-)
-from synaptic_bridge.domain.value_objects import (
-    UserPreferences,
-    ClassificationResult,
-    DeviceCommand,
-)
-from synaptic_bridge.infrastructure.adapters import InMemoryEventBus
-from synaptic_bridge.infrastructure.config import create_container
+import asyncio
+from datetime import datetime, UTC
 
 
-class TestNeuralSignal:
-    """Tests for NeuralSignal domain entity."""
+class TestToolManifest:
+    """Tests for ToolManifest domain entity."""
 
-    def test_create_neural_signal(self):
-        signal = NeuralSignal(
-            id="sig_1",
-            session_id="session_1",
-            channels=frozenset(["ch1", "ch2"]),
-            samples=((1.0, 2.0), (3.0, 4.0)),
-            sampling_rate_hz=250.0,
-            timestamp=None,
+    def test_create_tool_manifest(self):
+        from synaptic_bridge.domain.entities import (
+            ToolManifest,
+            CapabilityType,
+            AuditLevel,
         )
 
-        assert signal.id == "sig_1"
-        assert len(signal.channels) == 2
-        assert len(signal.samples) == 2
-
-    def test_get_channel_data(self):
-        signal = NeuralSignal(
-            id="sig_1",
-            session_id="session_1",
-            channels=frozenset(["ch1", "ch2"]),
-            samples=((1.0, 2.0), (3.0, 4.0), (5.0, 6.0)),
-            sampling_rate_hz=250.0,
-            timestamp=None,
+        manifest = ToolManifest(
+            tool_name="filesystem.read",
+            version="1.0.0",
+            capabilities=frozenset([CapabilityType.READ]),
+            scope="workspace:current",
+            ttl_seconds=900,
+            network_egress=False,
+            audit_level=AuditLevel.FULL,
+            signature="abc123",
+            created_at=datetime.now(UTC),
         )
 
-        ch1_data = signal.get_channel_data("ch1")
-        assert ch1_data == (1.0, 3.0, 5.0)
+        assert manifest.tool_name == "filesystem.read"
+        assert manifest.has_capability(CapabilityType.READ)
+        assert not manifest.has_capability(CapabilityType.WRITE)
+        assert not manifest.allows_network()
 
-    def test_add_channel_creates_new_instance(self):
-        signal = NeuralSignal(
-            id="sig_1",
-            session_id="session_1",
-            channels=frozenset(["ch1"]),
-            samples=((1.0,),),
-            sampling_rate_hz=250.0,
-            timestamp=None,
+    def test_to_toml(self):
+        from synaptic_bridge.domain.entities import (
+            ToolManifest,
+            CapabilityType,
+            AuditLevel,
         )
 
-        new_signal = signal.add_channel("ch2", (2.0,))
-
-        assert "ch2" in new_signal.channels
-        assert "ch1" in signal.channels
-        assert signal != new_signal
-
-
-class TestCognitiveState:
-    """Tests for CognitiveState domain entity."""
-
-    def test_create_cognitive_state(self):
-        state = CognitiveState(
-            id="cog_1",
-            session_id="session_1",
-            user_id="user_1",
-            state_type=CognitiveStateType.FOCUS,
-            confidence=0.85,
-            features_used=frozenset(["alpha", "beta"]),
-            timestamp=None,
+        manifest = ToolManifest(
+            tool_name="test.tool",
+            version="1.0.0",
+            capabilities=frozenset([CapabilityType.READ, CapabilityType.EXECUTE]),
+            scope="workspace:current",
+            ttl_seconds=900,
+            network_egress=False,
+            audit_level=AuditLevel.SUMMARY,
+            signature="sig123",
+            created_at=datetime.now(UTC),
         )
 
-        assert state.state_type == CognitiveStateType.FOCUS
-        assert state.confidence == 0.85
-        assert state.is_reliable()
-
-    def test_is_reliable_with_threshold(self):
-        state = CognitiveState(
-            id="cog_1",
-            session_id="session_1",
-            user_id="user_1",
-            state_type=CognitiveStateType.FOCUS,
-            confidence=0.5,
-            features_used=frozenset(["alpha"]),
-            timestamp=None,
-        )
-
-        assert not state.is_reliable(threshold=0.7)
-        assert state.is_reliable(threshold=0.4)
+        toml = manifest.to_toml()
+        assert "[test.tool]" in toml
+        assert "capabilities = [" in toml
+        assert 'scope = "workspace:current"' in toml
 
 
-class TestSession:
-    """Tests for Session domain entity."""
+class TestExecutionSession:
+    """Tests for ExecutionSession domain entity."""
 
     def test_create_session(self):
-        session = Session(
-            id="session_1",
-            user_id="user_1",
-            status=SessionStatus.INITIATED,
-            started_at=None,
-            ended_at=None,
-            device_ids=frozenset(["device_1"]),
-            signal_count=0,
-            classification_count=0,
-        )
+        from synaptic_bridge.domain.entities import ExecutionSession, SessionStatus
 
-        assert session.status == SessionStatus.INITIATED
-        assert session.signal_count == 0
-
-    def test_start_session(self):
-        session = Session(
-            id="session_1",
-            user_id="user_1",
-            status=SessionStatus.INITIATED,
-            started_at=None,
-            ended_at=None,
-            device_ids=frozenset(),
-            signal_count=0,
-            classification_count=0,
-        )
-
-        started = session.start()
-
-        assert started.status == SessionStatus.ACTIVE
-        assert session != started
-
-    def test_complete_session(self):
-        from datetime import datetime, UTC
-
-        session = Session(
-            id="session_1",
-            user_id="user_1",
+        session = ExecutionSession(
+            session_id="test_session",
+            agent_id="agent_1",
+            execution_token="token123",
             status=SessionStatus.ACTIVE,
             started_at=datetime.now(UTC),
-            ended_at=None,
-            device_ids=frozenset(),
-            signal_count=5,
-            classification_count=3,
+            expires_at=datetime.now(UTC).timestamp() + 900,
+            tool_calls=(),
+            created_by="system",
         )
 
-        completed = session.complete()
+        assert session.session_id == "test_session"
+        assert session.is_active()
 
-        assert completed.status == SessionStatus.COMPLETED
-        assert completed.ended_at is not None
-        assert completed.signal_count == 5
+    def test_session_expiration(self):
+        from synaptic_bridge.domain.entities import ExecutionSession, SessionStatus
 
-
-class TestDevice:
-    """Tests for Device domain entity."""
-
-    def test_create_device(self):
-        device = Device(
-            id="device_1",
-            user_id="user_1",
-            name="Robotic Arm",
-            device_type=DeviceType.ROBOTIC_ARM,
-            connection_status=DeviceConnectionStatus.DISCONNECTED,
-            capabilities=frozenset(["move", "grip"]),
-            last_command_timestamp=None,
+        session = ExecutionSession(
+            session_id="expired_session",
+            agent_id="agent_1",
+            execution_token="token123",
+            status=SessionStatus.ACTIVE,
+            started_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC).timestamp() - 100,
+            tool_calls=(),
+            created_by="system",
         )
 
-        assert device.name == "Robotic Arm"
-        assert device.supports_capability("move")
-        assert not device.supports_capability("invalid")
+        assert session.is_expired()
+        assert not session.is_active()
 
 
-class TestUserPreferences:
-    """Tests for UserPreferences value object."""
+class TestCorrection:
+    """Tests for Correction domain entity."""
 
-    def test_create_preferences(self):
-        prefs = UserPreferences(
-            sampling_rate_hz=500.0,
-            enabled_channels=frozenset(["ch1", "ch2"]),
-            classification_threshold=0.8,
+    def test_create_correction(self):
+        from synaptic_bridge.domain.entities import Correction
+
+        correction = Correction(
+            correction_id="corr_123",
+            session_id="session_1",
+            agent_id="agent_1",
+            original_intent="read file",
+            inferred_context="user wants to read",
+            original_tool="filesystem.read",
+            corrected_tool="database.query",
+            correction_metadata={"reason": "wrong tool"},
+            operator_identity="admin",
+            confidence_before=0.5,
+            confidence_after=0.9,
+            captured_at=datetime.now(UTC),
         )
 
-        assert prefs.sampling_rate_hz == 500.0
-        assert prefs.classification_threshold == 0.8
-
-    def test_with_sampling_rate(self):
-        prefs = UserPreferences(sampling_rate_hz=250.0)
-        new_prefs = prefs.with_sampling_rate(500.0)
-
-        assert new_prefs.sampling_rate_hz == 500.0
-        assert prefs.sampling_rate_hz == 250.0
-
-    def test_with_threshold(self):
-        prefs = UserPreferences(classification_threshold=0.7)
-        new_prefs = prefs.with_threshold(0.9)
-
-        assert new_prefs.classification_threshold == 0.9
-        assert prefs.classification_threshold == 0.7
+        assert correction.correction_id == "corr_123"
+        assert correction.was_improvement()
+        assert correction.trust_score() > 0.5
 
 
-class TestInMemoryEventBus:
-    """Tests for InMemoryEventBus."""
+class TestPolicy:
+    """Tests for Policy domain entity."""
 
-    @pytest.mark.asyncio
-    async def test_publish_event(self):
-        from dataclasses import dataclass
-        from synaptic_bridge.domain.events import DomainEvent
+    def test_create_policy(self):
+        from synaptic_bridge.domain.entities import Policy, PolicyEffect, PolicyScope
 
-        @dataclass(frozen=True)
-        class TestEvent(DomainEvent):
-            message: str = ""
+        policy = Policy(
+            policy_id="policy_1",
+            name="Deny Network",
+            description="Deny all network calls",
+            rego_code='package test\ndeny { input.tool == "network" }',
+            effect=PolicyEffect.DENY,
+            scope=PolicyScope.NETWORK,
+            tags=frozenset(["security", "network"]),
+            version="1.0.0",
+            enabled=True,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
 
-        event_bus = InMemoryEventBus()
-
-        event = TestEvent(aggregate_id="test_1", message="hello")
-        await event_bus.publish([event])
-
-        published = event_bus.get_published_events()
-        assert len(published) == 1
-        assert published[0].message == "hello"
-
-    @pytest.mark.asyncio
-    async def test_subscribe_and_receive(self):
-        from dataclasses import dataclass
-        from synaptic_bridge.domain.events import DomainEvent
-
-        @dataclass(frozen=True)
-        class TestEvent(DomainEvent):
-            message: str = ""
-
-        event_bus = InMemoryEventBus()
-        received = []
-
-        async def handler(event):
-            received.append(event)
-
-        await event_bus.subscribe(TestEvent, handler)
-
-        event = TestEvent(aggregate_id="test_1", message="hello")
-        await event_bus.publish([event])
-
-        assert len(received) == 1
-        assert received[0].message == "hello"
+        assert policy.policy_id == "policy_1"
+        assert policy.matches_tag("security")
+        assert not policy.matches_tag("wrong")
 
 
 class TestDAGOrchestrator:
@@ -322,4 +218,64 @@ class TestDAGOrchestrator:
         assert "b_start" in execution_times
 
 
-import asyncio
+class TestInMemoryAdapters:
+    """Tests for infrastructure adapters."""
+
+    @pytest.mark.asyncio
+    async def test_execution_session_creation(self):
+        from synaptic_bridge.infrastructure.adapters import InMemoryExecutionAdapter
+
+        adapter = InMemoryExecutionAdapter()
+        session = await adapter.create_session("agent_1", "admin")
+
+        assert session.agent_id == "agent_1"
+        assert session.execution_token is not None
+        assert session.is_active()
+
+    @pytest.mark.asyncio
+    async def test_tool_registry(self):
+        from synaptic_bridge.infrastructure.adapters import InMemoryToolRegistry
+        from synaptic_bridge.domain.entities import (
+            ToolManifest,
+            CapabilityType,
+            AuditLevel,
+        )
+
+        registry = InMemoryToolRegistry()
+
+        manifest = ToolManifest(
+            tool_name="test.tool",
+            version="1.0.0",
+            capabilities=frozenset([CapabilityType.READ]),
+            scope="test",
+            ttl_seconds=900,
+            network_egress=False,
+            audit_level=AuditLevel.NONE,
+            signature="sig",
+            created_at=datetime.now(UTC),
+        )
+
+        await registry.register(manifest)
+
+        retrieved = await registry.get("test.tool")
+        assert retrieved is not None
+        assert retrieved.tool_name == "test.tool"
+
+    @pytest.mark.asyncio
+    async def test_audit_log(self):
+        from synaptic_bridge.infrastructure.adapters import InMemoryAuditLog
+        from synaptic_bridge.domain.events import ToolCalledEvent
+
+        log = InMemoryAuditLog()
+
+        event = ToolCalledEvent(
+            aggregate_id="test",
+            session_id="session_1",
+            agent_id="agent_1",
+            tool_name="test.tool",
+        )
+
+        await log.write(event)
+
+        events = await log.get_by_session("session_1")
+        assert len(events) == 1

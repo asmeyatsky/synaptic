@@ -5,97 +5,238 @@ Following skill2026.md Rule 2 - Interface-First Development.
 Adapters implement ports defined in domain layer.
 """
 
-from typing import Any
+import uuid
+import hashlib
+import jwt
 from datetime import datetime, UTC
+from typing import Any
 
 from synaptic_bridge.domain.entities import (
-    NeuralSignal,
-    CognitiveState,
-    CognitiveStateType,
-    Device,
-)
-from synaptic_bridge.domain.value_objects import (
-    ClassificationResult,
-    DeviceStatus,
-    DeviceCommand,
+    ExecutionSession,
+    SessionStatus,
+    ToolManifest,
+    Correction,
+    CorrectionPattern,
+    Policy,
+    AuditEvent,
 )
 
 
-class MockCognitiveClassifier:
-    """Mock implementation of CognitiveClassifierPort for testing."""
+SECRET_KEY = "synaptic-bridge-dev-key"
+DEFAULT_TTL = 900
 
-    async def classify(self, signal: NeuralSignal) -> ClassificationResult:
+
+class InMemoryExecutionAdapter:
+    """In-memory implementation of ExecutionPort."""
+
+    def __init__(self):
+        self._sessions: dict[str, ExecutionSession] = {}
+
+    async def create_session(self, agent_id: str, created_by: str) -> ExecutionSession:
+        session_id = f"session_{uuid.uuid4().hex[:12]}"
+        token = jwt.encode(
+            {"session_id": session_id, "agent_id": agent_id},
+            SECRET_KEY,
+            algorithm="HS256",
+        )
+
+        session = ExecutionSession(
+            session_id=session_id,
+            agent_id=agent_id,
+            execution_token=token,
+            status=SessionStatus.ACTIVE,
+            started_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC).timestamp() + DEFAULT_TTL,
+            tool_calls=(),
+            created_by=created_by,
+        )
+
+        self._sessions[session_id] = session
+        return session
+
+    async def get_session(self, session_id: str) -> ExecutionSession | None:
+        session = self._sessions.get(session_id)
+        if session and session.is_expired():
+            expired = session.expire()
+            self._sessions[session_id] = expired
+            return expired
+        return session
+
+    async def validate_token(self, token: str) -> bool:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            session = await self.get_session(payload["session_id"])
+            return session is not None and session.is_active()
+        except jwt.InvalidTokenError:
+            return False
+
+    async def execute_tool(
+        self, session: ExecutionSession, tool_name: str, parameters: dict
+    ) -> dict:
+        return {
+            "success": True,
+            "tool": tool_name,
+            "result": f"Executed {tool_name} with params {parameters}",
+            "execution_time_ms": 10.5,
+        }
+
+
+class InMemoryToolRegistry:
+    """In-memory implementation of ToolRegistryPort."""
+
+    def __init__(self):
+        self._tools: dict[str, ToolManifest] = {}
+
+    async def register(self, manifest: ToolManifest) -> None:
+        self._tools[manifest.tool_name] = manifest
+
+    async def get(self, tool_name: str) -> ToolManifest | None:
+        return self._tools.get(tool_name)
+
+    async def list_all(self) -> list[ToolManifest]:
+        return list(self._tools.values())
+
+    async def validate_signature(self, manifest: ToolManifest) -> bool:
+        return True
+
+
+class InMemoryCorrectionStore:
+    """In-memory implementation of CorrectionStorePort."""
+
+    def __init__(self):
+        self._corrections: dict[str, Correction] = {}
+        self._patterns: dict[str, CorrectionPattern] = {}
+
+    async def save_correction(self, correction: Correction) -> None:
+        self._corrections[correction.correction_id] = correction
+
+        pattern_key = tuple(sorted(correction.corrected_tools))
+
+        if pattern_key in self._patterns:
+            existing = self._patterns[pattern_key]
+            self._patterns[pattern_key] = existing.with_increment(
+                correction.confidence_after - correction.confidence_before
+            )
+        else:
+            self._patterns[pattern_key] = CorrectionPattern(
+                pattern_id=f"pattern_{uuid.uuid4().hex[:8]}",
+                intent_vector=tuple([0.0] * 128),
+                original_tools=(correction.original_tool,),
+                corrected_tools=(correction.corrected_tool,),
+                occurrence_count=1,
+                avg_confidence_improvement=correction.confidence_after
+                - correction.confidence_before,
+                last_updated=datetime.now(UTC),
+            )
+
+    async def get_correction(self, correction_id: str) -> Correction | None:
+        return self._corrections.get(correction_id)
+
+    async def find_patterns(
+        self, intent_vector: tuple[float, ...]
+    ) -> list[CorrectionPattern]:
+        return list(self._patterns.values())
+
+
+class InMemoryPolicyEngine:
+    """In-memory implementation of PolicyEnginePort."""
+
+    def __init__(self):
+        self._policies: dict[str, Policy] = {}
+
+    async def evaluate(self, policy: Policy, context: dict) -> bool:
+        if policy.effect.value == "deny":
+            return False
+        return True
+
+    async def add_policy(self, policy: Policy) -> None:
+        self._policies[policy.policy_id] = policy
+
+    async def remove_policy(self, policy_id: str) -> None:
+        self._policies.pop(policy_id, None)
+
+    async def list_policies(self) -> list[Policy]:
+        return [p for p in self._policies.values() if p.enabled]
+
+
+class InMemoryAuditLog:
+    """In-memory implementation of AuditLogPort."""
+
+    def __init__(self):
+        self._events: list[AuditEvent] = []
+
+    async def write(self, event: Any) -> None:
+        if event is None:
+            return
+
+        if hasattr(event, "to_dict"):
+            event_dict = event.to_dict()
+        else:
+            event_dict = {"event": str(event)}
+
+        audit_event = AuditEvent(
+            event_id=f"audit_{uuid.uuid4().hex[:12]}",
+            event_type=event.__class__.__name__,
+            session_id=getattr(event, "session_id", None),
+            agent_id=getattr(event, "agent_id", None),
+            tool_name=getattr(event, "tool_name", None),
+            action="create",
+            actor="system",
+            resource="",
+            outcome="success",
+            metadata=event_dict,
+            timestamp=datetime.now(UTC),
+            signature=self._sign_event(event_dict),
+        )
+
+        self._events.append(audit_event)
+
+    async def query(self, filters: dict) -> list[AuditEvent]:
+        results = self._events
+
+        for key, value in filters.items():
+            results = [e for e in results if getattr(e, key, None) == value]
+
+        return results
+
+    async def get_by_session(self, session_id: str) -> list[AuditEvent]:
+        return await self.query({"session_id": session_id})
+
+    async def verify_integrity(self, event_id: str) -> bool:
+        for event in self._events:
+            if event.event_id == event_id:
+                expected_sig = self._sign_event(event.to_dict())
+                return event.signature == expected_sig
+        return False
+
+    def _sign_event(self, event_dict: dict) -> str:
+        data = str(sorted(event_dict.items()))
+        return hashlib.sha256(data.encode()).hexdigest()[:16]
+
+
+class MockIntentClassifier:
+    """Mock implementation of IntentClassifierPort."""
+
+    async def classify_intent(self, intent_text: str) -> tuple[str, float]:
+        tool_keywords = {
+            "read": "filesystem.read",
+            "write": "filesystem.write",
+            "execute": "bash.execute",
+            "search": "search.execute",
+            "http": "http.request",
+        }
+
+        for keyword, tool in tool_keywords.items():
+            if keyword in intent_text.lower():
+                return tool, 0.85
+
+        return "unknown", 0.0
+
+    async def get_embedding(self, text: str) -> tuple[float, ...]:
         import random
 
-        states = ["focus", "relaxed", "stressed", "engaged"]
-        state = random.choice(states)
-        confidence = random.uniform(0.6, 0.95)
+        random.seed(hash(text) % (2**32))
+        return tuple(random.random() for _ in range(128))
 
-        return ClassificationResult(
-            state_type=state,
-            confidence=confidence,
-            features_used=frozenset(["alpha", "beta", "theta"]),
-            alternative_states=frozenset([s for s in states if s != state]),
-        )
-
-    async def train(
-        self, user_id: str, signals: list[NeuralSignal], labels: list[str]
-    ) -> None:
-        pass
-
-
-class MockDeviceController:
-    """Mock implementation of DeviceControllerPort for testing."""
-
-    def __init__(self):
-        self._connected_devices: set[str] = set()
-
-    async def connect(self, device_id: str) -> bool:
-        self._connected_devices.add(device_id)
-        return True
-
-    async def disconnect(self, device_id: str) -> bool:
-        self._connected_devices.discard(device_id)
-        return True
-
-    async def send_command(self, device: Device, command: DeviceCommand) -> bool:
-        return True
-
-    async def get_status(self, device_id: str) -> DeviceStatus:
-        is_connected = device_id in self._connected_devices
-
-        return DeviceStatus(
-            device_id=device_id,
-            is_connected=is_connected,
-            last_update=datetime.now(UTC),
-            state="operational" if is_connected else "disconnected",
-            metrics=(
-                ("battery_level", 85),
-                ("signal_quality", 0.9),
-            ),
-        )
-
-
-class InMemoryEventBus:
-    """In-memory implementation of EventBusPort."""
-
-    def __init__(self):
-        self._handlers: dict[type, list[Any]] = {}
-        self._published_events: list[Any] = []
-
-    async def publish(self, events: list[Any]) -> None:
-        self._published_events.extend(events)
-
-        for event in events:
-            event_type = type(event)
-            if event_type in self._handlers:
-                for handler in self._handlers[event_type]:
-                    await handler(event)
-
-    async def subscribe(self, event_type: type, handler: Any) -> None:
-        if event_type not in self._handlers:
-            self._handlers[event_type] = []
-        self._handlers[event_type].append(handler)
-
-    def get_published_events(self) -> list[Any]:
-        return self._published_events.copy()
+    async def match_tool(self, embedding: tuple[float, ...]) -> tuple[str, float]:
+        return "filesystem.read", 0.85

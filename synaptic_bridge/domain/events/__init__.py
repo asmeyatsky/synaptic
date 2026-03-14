@@ -1,7 +1,6 @@
 """
-Domain Events Base
+Domain Events
 
-Base class and utilities for domain events.
 Following skill2026.md event-driven communication patterns.
 """
 
@@ -21,43 +20,58 @@ class DomainEvent:
 
 
 @dataclass(frozen=True)
-class SignalAcquiredEvent(DomainEvent):
+class ToolCalledEvent(DomainEvent):
     session_id: str = ""
-    channel_count: int = 0
-    note: str = ""
+    agent_id: str = ""
+    tool_name: str = ""
+    was_corrected: bool = False
+    correction_confidence: float = 0.0
 
 
 @dataclass(frozen=True)
-class ClassificationCompletedEvent(DomainEvent):
+class CorrectionCapturedEvent(DomainEvent):
     session_id: str = ""
-    state_type: str = ""
-    confidence: float = 0.0
+    agent_id: str = ""
+    original_tool: str = ""
+    corrected_tool: str = ""
+    operator_identity: str = ""
 
 
 @dataclass(frozen=True)
-class DeviceCommandExecutedEvent(DomainEvent):
-    command: str = ""
-    parameters: dict = field(default_factory=dict)
+class PolicyViolationEvent(DomainEvent):
+    session_id: str = ""
+    agent_id: str = ""
+    policy_id: str = ""
+    tool_name: str = ""
+    reason: str = ""
 
 
 @dataclass(frozen=True)
 class SessionStartedEvent(DomainEvent):
-    user_id: str = ""
+    agent_id: str = ""
+    execution_token: str = ""
 
 
 @dataclass(frozen=True)
 class SessionEndedEvent(DomainEvent):
-    user_id: str = ""
+    agent_id: str = ""
+    reason: str = ""
     duration_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
-class UserRegisteredEvent(DomainEvent):
-    email: str = ""
-    name: str = ""
+class IntentClassifiedEvent(DomainEvent):
+    session_id: str = ""
+    agent_id: str = ""
+    intent_text: str = ""
+    matched_tool: str = ""
+    confidence: float = 0.0
 
 
 @dataclass(frozen=True)
-class DeviceConnectedEvent(DomainEvent):
-    device_name: str = ""
-    device_type: str = ""
+class DriftDetectedEvent(DomainEvent):
+    session_id: str = ""
+    tool_name: str = ""
+    expected_behavior: str = ""
+    observed_behavior: str = ""
+    drift_score: float = 0.0

@@ -8,215 +8,283 @@ Each bounded context exposed as MCP server with:
 - Prompts = reusable interaction patterns
 """
 
+import uuid
 from typing import Any
-from datetime import datetime, UTC
 
-from synaptic_bridge.domain.entities import (
-    Session,
-    SessionStatus,
-    Device,
-    DeviceType,
-    DeviceConnectionStatus,
-)
 from synaptic_bridge.application.commands import (
     CreateSessionCommand,
-    StartSessionCommand,
-    EndSessionCommand,
+    ExecuteToolCommand,
+    CaptureCorrectionCommand,
+    AddPolicyCommand,
+    RegisterToolCommand,
 )
-from synaptic_bridge.application.queries import GetSessionQuery, ListSessionsQuery
-from synaptic_bridge.application.dtos import SessionDTO
+from synaptic_bridge.application.queries import (
+    GetSessionQuery,
+    ListToolsQuery,
+    GetToolQuery,
+    ListPoliciesQuery,
+    QueryAuditLogQuery,
+)
 
 
 class SessionMCPServer:
     """
-    MCP server for Session bounded context.
+    MCP server for Execution Fabric bounded context.
 
     Tools:
-    - create_session: Create a new recording session
-    - start_session: Start an existing session
-    - end_session: End an active session
+    - create_session: Create a new agent execution session
+    - execute_tool: Execute a tool with policy checks
+    - get_session: Get session details
 
     Resources:
     - session://{id}: Get session by ID
-    - sessions://user/{user_id}: List user's sessions
     """
 
     def __init__(self, container: Any):
         self._container = container
 
-    async def create_session(self, user_id: str, device_ids: list[str]) -> dict:
-        """Create a new recording session."""
-        command = CreateSessionCommand(user_id=user_id, device_ids=device_ids)
+    async def create_session(self, agent_id: str, created_by: str) -> dict:
+        """Create a new agent execution session with JWT token."""
+        command = CreateSessionCommand(agent_id=agent_id, created_by=created_by)
 
-        session_repo = self._container.resolve("session_repo")
-        event_bus = self._container.resolve("event_bus")
+        execution_port = self._container.resolve("execution_port")
+        audit_log = self._container.resolve("audit_log")
 
-        session = await command.execute(session_repo, event_bus)
+        session = await command.execute(execution_port, audit_log)
 
-        return SessionDTO.from_entity(session).to_dict()
+        return {
+            "session_id": session.session_id,
+            "execution_token": session.execution_token,
+            "status": session.status.value,
+            "expires_at": session.expires_at.isoformat()
+            if hasattr(session.expires_at, "isoformat")
+            else str(session.expires_at),
+        }
 
-    async def start_session(self, session_id: str) -> dict:
-        """Start an existing session."""
-        command = StartSessionCommand(session_id=session_id)
+    async def execute_tool(
+        self, session_id: str, tool_name: str, parameters: dict, intent: str
+    ) -> dict:
+        """Execute a tool with policy checks and CLE."""
+        command = ExecuteToolCommand(
+            session_id=session_id,
+            tool_name=tool_name,
+            parameters=parameters,
+            intent=intent,
+        )
 
-        session_repo = self._container.resolve("session_repo")
-        event_bus = self._container.resolve("event_bus")
+        execution_port = self._container.resolve("execution_port")
+        tool_registry = self._container.resolve("tool_registry")
+        policy_engine = self._container.resolve("policy_engine")
+        audit_log = self._container.resolve("audit_log")
 
-        session = await command.execute(session_repo, event_bus)
+        result = await command.execute(
+            execution_port,
+            tool_registry,
+            policy_engine,
+            audit_log,
+        )
 
-        return SessionDTO.from_entity(session).to_dict()
-
-    async def end_session(self, session_id: str) -> dict:
-        """End an active session."""
-        command = EndSessionCommand(session_id=session_id)
-
-        session_repo = self._container.resolve("session_repo")
-        event_bus = self._container.resolve("event_bus")
-
-        session = await command.execute(session_repo, event_bus)
-
-        return SessionDTO.from_entity(session).to_dict()
+        return result
 
     async def get_session(self, session_id: str) -> dict | None:
         """Get session by ID (resource handler)."""
         query = GetSessionQuery(session_id=session_id)
-        session_repo = self._container.resolve("session_repo")
+        execution_port = self._container.resolve("execution_port")
 
-        session = await query.execute(session_repo)
+        session = await query.execute(execution_port)
 
         if session:
-            return SessionDTO.from_entity(session).to_dict()
+            return {
+                "session_id": session.session_id,
+                "agent_id": session.agent_id,
+                "status": session.status.value,
+                "is_active": session.is_active(),
+            }
         return None
 
-    async def list_user_sessions(self, user_id: str) -> list[dict]:
-        """List all sessions for a user (resource handler)."""
-        query = ListSessionsQuery(user_id=user_id)
-        session_repo = self._container.resolve("session_repo")
 
-        sessions = await query.execute(session_repo)
-
-        return [SessionDTO.from_entity(s).to_dict() for s in sessions]
-
-
-class DeviceMCPServer:
+class ToolMCPServer:
     """
-    MCP server for Device bounded context.
+    MCP server for Tool Management bounded context.
 
     Tools:
-    - connect_device: Connect to a device
-    - disconnect_device: Disconnect from a device
-    - send_device_command: Send command to device
+    - register_tool: Register a new tool manifest
+    - list_tools: List all registered tools
 
     Resources:
-    - device://{id}: Get device by ID
-    - devices://user/{user_id}: List user's devices
+    - tool://{name}: Get tool by name
+    - tools://: List all tools
     """
 
     def __init__(self, container: Any):
         self._container = container
 
-    async def connect_device(self, device_id: str) -> dict:
-        """Connect to a device."""
-        controller = self._container.resolve("device_controller")
-
-        success = await controller.connect(device_id)
-
-        return {"success": success, "device_id": device_id}
-
-    async def disconnect_device(self, device_id: str) -> dict:
-        """Disconnect from a device."""
-        controller = self._container.resolve("device_controller")
-
-        success = await controller.disconnect(device_id)
-
-        return {"success": success, "device_id": device_id}
-
-    async def send_device_command(
-        self, device_id: str, command_type: str, parameters: dict
+    async def register_tool(
+        self,
+        tool_name: str,
+        version: str,
+        capabilities: list[str],
+        scope: str,
+        ttl_seconds: int,
+        network_egress: bool,
+        audit_level: str,
+        signature: str,
     ) -> dict:
-        """Send a command to a device."""
-        from synaptic_bridge.domain.value_objects import DeviceCommand
-
-        controller = self._container.resolve("device_controller")
-        device_repo = self._container.resolve("device_repo")
-
-        device = await device_repo.get_by_id(device_id)
-        if not device:
-            raise ValueError(f"Device {device_id} not found")
-
-        param_tuples = tuple(parameters.items())
-        command = DeviceCommand(
-            command_type=command_type,
-            parameters=param_tuples,
-            issued_at=datetime.now(UTC),
-            issued_by=device.user_id,
+        """Register a new tool manifest."""
+        command = RegisterToolCommand(
+            tool_name=tool_name,
+            version=version,
+            capabilities=capabilities,
+            scope=scope,
+            ttl_seconds=ttl_seconds,
+            network_egress=network_egress,
+            audit_level=audit_level,
+            signature=signature,
         )
 
-        success = await controller.send_command(device, command)
+        tool_registry = self._container.resolve("tool_registry")
 
-        return {"success": success, "device_id": device_id, "command": command_type}
+        manifest = await command.execute(tool_registry)
+
+        return {
+            "tool_name": manifest.tool_name,
+            "version": manifest.version,
+            "status": "registered",
+        }
+
+    async def list_tools(self) -> list[dict]:
+        """List all registered tools."""
+        query = ListToolsQuery()
+        tool_registry = self._container.resolve("tool_registry")
+
+        tools = await query.execute(tool_registry)
+
+        return [
+            {
+                "tool_name": t.tool_name,
+                "version": t.version,
+                "capabilities": [c.value for c in t.capabilities],
+                "scope": t.scope,
+            }
+            for t in tools
+        ]
 
 
-class SignalMCPServer:
+class CLEMPServer:
     """
-    MCP server for Signal Processing bounded context.
+    MCP server for Correction Learning Engine bounded context.
 
     Tools:
-    - process_signal: Process neural signal and classify
+    - capture_correction: Capture a human override/correction
+    - find_patterns: Find matching correction patterns
 
     Resources:
-    - signal://{id}: Get signal by ID
-    - signals://session/{session_id}: List session signals
+    - corrections://session/{session_id}: Get corrections for session
+    - patterns://: List all correction patterns
     """
 
     def __init__(self, container: Any):
         self._container = container
 
-    async def process_signal(self, signal_id: str) -> dict:
-        """Process neural signal and return classification."""
-        signal_repo = self._container.resolve("signal_repo")
-        classifier = self._container.resolve("cognitive_classifier")
+    async def capture_correction(
+        self,
+        session_id: str,
+        agent_id: str,
+        original_intent: str,
+        inferred_context: str,
+        original_tool: str,
+        corrected_tool: str,
+        correction_metadata: dict,
+        operator_identity: str,
+        confidence_before: float,
+        confidence_after: float,
+    ) -> dict:
+        """Capture a human override/correction."""
+        command = CaptureCorrectionCommand(
+            session_id=session_id,
+            agent_id=agent_id,
+            original_intent=original_intent,
+            inferred_context=inferred_context,
+            original_tool=original_tool,
+            corrected_tool=corrected_tool,
+            correction_metadata=correction_metadata,
+            operator_identity=operator_identity,
+            confidence_before=confidence_before,
+            confidence_after=confidence_after,
+        )
 
-        signal = await signal_repo.get_by_id(signal_id)
-        if not signal:
-            raise ValueError(f"Signal {signal_id} not found")
+        correction_store = self._container.resolve("correction_store")
 
-        result = await classifier.classify(signal)
+        correction = await command.execute(correction_store)
 
         return {
-            "signal_id": signal_id,
-            "state_type": result.state_type,
-            "confidence": result.confidence,
-            "features_used": list(result.features_used),
-            "is_reliable": result.is_reliable(),
+            "correction_id": correction.correction_id,
+            "captured_at": correction.captured_at.isoformat(),
+            "trust_score": correction.trust_score(),
         }
 
 
-class UserMCPServer:
+class PolicyMCPServer:
     """
-    MCP server for User bounded context.
+    MCP server for Policy & Governance bounded context.
 
     Tools:
-    - register_user: Register a new user
-    - update_preferences: Update user preferences
+    - add_policy: Add a new OPA policy
+    - list_policies: List all policies
 
     Resources:
-    - user://{id}: Get user by ID
+    - policy://{id}: Get policy by ID
+    - policies://: List all policies
     """
 
     def __init__(self, container: Any):
         self._container = container
 
-    async def get_user(self, user_id: str) -> dict | None:
-        """Get user by ID (resource handler)."""
-        from synaptic_bridge.application.queries import GetUserQuery
-        from synaptic_bridge.application.dtos import UserDTO
+    async def add_policy(
+        self,
+        name: str,
+        description: str,
+        rego_code: str,
+        effect: str,
+        scope: str,
+        tags: list[str],
+    ) -> dict:
+        """Add a new OPA policy."""
+        from synaptic_bridge.domain.entities import PolicyEffect, PolicyScope
 
-        query = GetUserQuery(user_id=user_id)
-        user_repo = self._container.resolve("user_repo")
+        command = AddPolicyCommand(
+            name=name,
+            description=description,
+            rego_code=rego_code,
+            effect=PolicyEffect(effect),
+            scope=PolicyScope(scope),
+            tags=tags,
+        )
 
-        user = await query.execute(user_repo)
+        policy_engine = self._container.resolve("policy_engine")
 
-        if user:
-            return UserDTO.from_entity(user).to_dict()
-        return None
+        policy = await command.execute(policy_engine)
+
+        return {
+            "policy_id": policy.policy_id,
+            "name": policy.name,
+            "enabled": policy.enabled,
+        }
+
+    async def list_policies(self) -> list[dict]:
+        """List all policies."""
+        query = ListPoliciesQuery()
+        policy_engine = self._container.resolve("policy_engine")
+
+        policies = await query.execute(policy_engine)
+
+        return [
+            {
+                "policy_id": p.policy_id,
+                "name": p.name,
+                "effect": p.effect.value,
+                "scope": p.scope.value,
+                "enabled": p.enabled,
+            }
+            for p in policies
+        ]

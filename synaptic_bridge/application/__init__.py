@@ -5,73 +5,47 @@ Architectural Intent:
 - Use cases orchestrate domain objects via ports
 - Command/Query separation following CQRS pattern
 - DAG orchestration for multi-step workflows
-- Parallel execution of independent operations
-
-MCP Integration:
-- Commands exposed as MCP tools (write operations)
-- Queries exposed as MCP resources (read operations)
+- CLE predictive dispatch and routing intelligence
 """
 
 from .commands import (
     CreateSessionCommand,
-    StartSessionCommand,
-    EndSessionCommand,
-    AcquireSignalCommand,
-    ClassifySignalCommand,
-    ConnectDeviceCommand,
-    DisconnectDeviceCommand,
-    SendDeviceCommandCommand,
-    RegisterUserCommand,
-    UpdatePreferencesCommand,
+    ExecuteToolCommand,
+    CaptureCorrectionCommand,
+    AddPolicyCommand,
+    RegisterToolCommand,
 )
 from .queries import (
     GetSessionQuery,
-    ListSessionsQuery,
-    GetCognitiveStateQuery,
-    ListCognitiveStatesQuery,
-    GetDeviceQuery,
-    ListDevicesQuery,
-    GetUserQuery,
-)
-from .dtos import (
-    SessionDTO,
-    NeuralSignalDTO,
-    CognitiveStateDTO,
-    DeviceDTO,
-    UserDTO,
-    ClassificationResultDTO,
+    ListToolsQuery,
+    GetToolQuery,
+    ListPoliciesQuery,
+    GetPolicyQuery,
+    QueryAuditLogQuery,
+    FindCorrectionPatternsQuery,
 )
 from .orchestration import (
-    ProcessSignalWorkflow,
     DAGOrchestrator,
     WorkflowStep,
+    CLEPredictiveDispatchWorkflow,
+    MultiHopChainPlanner,
 )
 
 __all__ = [
     "CreateSessionCommand",
-    "StartSessionCommand",
-    "EndSessionCommand",
-    "AcquireSignalCommand",
-    "ClassifySignalCommand",
-    "ConnectDeviceCommand",
-    "DisconnectDeviceCommand",
-    "SendDeviceCommandCommand",
-    "RegisterUserCommand",
-    "UpdatePreferencesCommand",
+    "ExecuteToolCommand",
+    "CaptureCorrectionCommand",
+    "AddPolicyCommand",
+    "RegisterToolCommand",
     "GetSessionQuery",
-    "ListSessionsQuery",
-    "GetCognitiveStateQuery",
-    "ListCognitiveStatesQuery",
-    "GetDeviceQuery",
-    "ListDevicesQuery",
-    "GetUserQuery",
-    "SessionDTO",
-    "NeuralSignalDTO",
-    "CognitiveStateDTO",
-    "DeviceDTO",
-    "UserDTO",
-    "ClassificationResultDTO",
-    "ProcessSignalWorkflow",
+    "ListToolsQuery",
+    "GetToolQuery",
+    "ListPoliciesQuery",
+    "GetPolicyQuery",
+    "QueryAuditLogQuery",
+    "FindCorrectionPatternsQuery",
     "DAGOrchestrator",
     "WorkflowStep",
+    "CLEPredictiveDispatchWorkflow",
+    "MultiHopChainPlanner",
 ]

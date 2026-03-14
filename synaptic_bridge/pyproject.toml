@@ -5,12 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "synaptic-bridge"
 version = "1.0.0"
-description = "SynapticBridge BCI System"
+description = "SynapticBridge MCP Orchestration Platform with Correction Learning Engine"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.100.0",
     "uvicorn>=0.23.0",
     "pydantic>=2.0.0",
+    "pyjwt>=2.8.0",
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "httpx>=0.24.0",
@@ -22,3 +23,4 @@ include = ["synaptic_bridge*"]
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+python_files = "test_*.py"

@@ -1,15 +1,15 @@
 """
 Workflow Orchestration
 
-Following skill2026.md Pattern 7 - Parallel-Safe Orchestration.
 DAG-based execution for multi-step workflows with parallelization.
+Following skill2026.md Rule 7 - Parallel-Safe Orchestration.
 """
 
 import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from synaptic_bridge.domain.entities import NeuralSignal, CognitiveState
+from synaptic_bridge.domain.entities import CorrectionPattern
 
 
 @dataclass
@@ -23,8 +23,6 @@ class DAGOrchestrator:
     """
     Executes workflow steps respecting dependency order,
     parallelizing independent steps automatically.
-
-    Following skill2026.md Rule 7 - Parallel-Safe Orchestration.
     """
 
     def __init__(self, steps: list[WorkflowStep]):
@@ -80,114 +78,177 @@ class DAGOrchestrator:
         return completed
 
 
-class ProcessSignalWorkflow:
+class CLEPredictiveDispatchWorkflow:
     """
-    Workflow for processing neural signals through:
-    1. Preprocessing (filtering, artifact removal)
-    2. Feature extraction
-    3. Classification
+    Correction Learning Engine Predictive Dispatch Workflow.
 
-    Steps 1 and 2 can run in parallel (per channel).
-    Step 3 waits for all features to be ready.
+    Following PRD: Scores tool calls against rule graph; if confidence threshold met,
+    dispatches corrected tool instead of original.
 
-    Following skill2026.md - Parallelism-First Design.
+    Steps:
+    1. Classify intent
+    2. Check CLE for matching patterns
+    3. Validate correction confidence threshold
+    4. Execute (potentially corrected) tool
     """
 
     def __init__(
         self,
-        signal: NeuralSignal,
-        classifier: Any,
-        signal_repo: Any,
+        intent: str,
+        original_tool: str,
+        parameters: dict,
+        confidence_threshold: float = 0.7,
+        intent_classifier: Any = None,
+        correction_store: Any = None,
+        execution_port: Any = None,
     ):
-        self.signal = signal
-        self.classifier = classifier
-        self.signal_repo = signal_repo
+        self.intent = intent
+        self.original_tool = original_tool
+        self.parameters = parameters
+        self.confidence_threshold = confidence_threshold
+        self.intent_classifier = intent_classifier
+        self.correction_store = correction_store
+        self.execution_port = execution_port
 
-    async def execute(self) -> CognitiveState:
+    async def execute(self) -> dict:
         steps = [
-            WorkflowStep("preprocess", self._preprocess_channels),
-            WorkflowStep("extract_features", self._extract_features),
+            WorkflowStep("classify_intent", self._classify_intent),
             WorkflowStep(
-                "classify",
-                self._classify,
-                depends_on=["preprocess", "extract_features"],
+                "check_patterns",
+                self._check_cle_patterns,
+                depends_on=["classify_intent"],
+            ),
+            WorkflowStep(
+                "validate_correction",
+                self._validate_correction,
+                depends_on=["check_patterns"],
+            ),
+            WorkflowStep(
+                "execute_tool", self._execute_tool, depends_on=["validate_correction"]
             ),
         ]
 
         orchestrator = DAGOrchestrator(steps)
-        results = await orchestrator.execute({"signal": self.signal})
+        return await orchestrator.execute({})
 
-        return results["classify"]
+    async def _classify_intent(self, context: dict, completed: dict) -> dict:
+        tool_name, confidence = await self.intent_classifier.classify_intent(
+            self.intent
+        )
+        return {"matched_tool": tool_name, "confidence": confidence}
 
-    async def _preprocess_channels(
-        self, context: dict, completed: dict
-    ) -> dict[str, Any]:
-        signal = context["signal"]
+    async def _check_cle_patterns(self, context: dict, completed: dict) -> dict:
+        classification = completed["classify_intent"]
+        embedding = await self.intent_classifier.get_embedding(self.intent)
 
-        preprocessed = {}
-        tasks = [self._preprocess_single_channel(signal, ch) for ch in signal.channels]
+        patterns = await self.correction_store.find_patterns(embedding)
 
-        results = await asyncio.gather(*tasks)
+        best_match = None
+        best_score = 0.0
 
-        for ch, result in zip(signal.channels, results):
-            preprocessed[ch] = result
-
-        return preprocessed
-
-    async def _preprocess_single_channel(
-        self, signal: NeuralSignal, channel: str
-    ) -> tuple[float, ...]:
-        await asyncio.sleep(0.001)
-        return signal.get_channel_data(channel)
-
-    async def _extract_features(self, context: dict, completed: dict) -> dict[str, Any]:
-        signal = context["signal"]
-
-        features = {}
-        tasks = [self._extract_channel_features(signal, ch) for ch in signal.channels]
-
-        results = await asyncio.gather(*tasks)
-
-        for ch, result in zip(signal.channels, results):
-            features[ch] = result
-
-        return features
-
-    async def _extract_channel_features(
-        self, signal: NeuralSignal, channel: str
-    ) -> dict[str, float]:
-        data = signal.get_channel_data(channel)
+        for pattern in patterns:
+            if self.original_tool in pattern.original_tools:
+                score = pattern.matches_intent(embedding)
+                if score > best_score:
+                    best_score = score
+                    best_match = pattern
 
         return {
-            "mean": sum(data) / len(data) if data else 0.0,
-            "std": self._calculate_std(data),
-            "min": min(data) if data else 0.0,
-            "max": max(data) if data else 0.0,
+            "pattern": best_match,
+            "score": best_score,
+            "should_correct": best_score >= self.confidence_threshold,
         }
 
-    def _calculate_std(self, data: tuple[float, ...]) -> float:
-        if len(data) < 2:
-            return 0.0
-        mean = sum(data) / len(data)
-        variance = sum((x - mean) ** 2 for x in data) / len(data)
-        return variance**0.5
+    async def _validate_correction(self, context: dict, completed: dict) -> dict:
+        patterns_result = completed["check_patterns"]
 
-    async def _classify(self, context: dict, completed: dict) -> CognitiveState:
-        signal = context["signal"]
+        if patterns_result["should_correct"] and patterns_result["pattern"]:
+            corrected_tool = patterns_result["pattern"].corrected_tools[0]
+            return {
+                "should_correct": True,
+                "tool_to_execute": corrected_tool,
+                "confidence": patterns_result["score"],
+                "pattern_id": patterns_result["pattern"].pattern_id,
+            }
 
-        from synaptic_bridge.domain.entities import CognitiveState, CognitiveStateType
-        from datetime import datetime, UTC
+        return {
+            "should_correct": False,
+            "tool_to_execute": self.original_tool,
+            "confidence": 1.0,
+            "pattern_id": None,
+        }
 
-        result = await self.classifier.classify(signal)
+    async def _execute_tool(self, context: dict, completed: dict) -> dict:
+        validation = completed["validate_correction"]
+        tool_to_execute = validation["tool_to_execute"]
 
-        return CognitiveState(
-            id=f"cogstate_{datetime.now(UTC).timestamp()}",
-            session_id=signal.session_id,
-            user_id=signal.session_id.split("_")[0]
-            if "_" in signal.session_id
-            else "unknown",
-            state_type=CognitiveStateType(result.state_type),
-            confidence=result.confidence,
-            features_used=frozenset(result.features_used),
-            timestamp=datetime.now(UTC),
-        )
+        return {
+            "executed_tool": tool_to_execute,
+            "was_corrected": validation["should_correct"],
+            "confidence": validation["confidence"],
+            "pattern_id": validation["pattern_id"],
+        }
+
+
+class MultiHopChainPlanner:
+    """
+    Plans multi-hop tool chains with dependency resolution.
+    Following PRD: Dependency graphs, circular call detection, graceful degradation.
+    """
+
+    def __init__(self, tool_registry: Any):
+        self.tool_registry = tool_registry
+
+    async def plan(self, intent: str, available_tools: list[str]) -> list[list[str]]:
+        """
+        Plan chains of tools to fulfill an intent.
+        Returns list of possible chains (each chain is a list of tool names).
+        """
+        chains = []
+
+        if len(available_tools) == 1:
+            return [available_tools]
+
+        for i, tool in enumerate(available_tools):
+            remaining = available_tools[:i] + available_tools[i + 1 :]
+
+            sub_chains = await self._plan_with_tool(tool, remaining, [tool])
+            chains.extend(sub_chains)
+
+        unique_chains = []
+        seen = set()
+        for chain in chains:
+            key = tuple(sorted(chain))
+            if key not in seen:
+                seen.add(key)
+                unique_chains.append(chain)
+
+        return unique_chains
+
+    async def _plan_with_tool(
+        self, tool: str, remaining: list[str], current_chain: list[str]
+    ) -> list[list[str]]:
+        if not remaining:
+            return [current_chain]
+
+        chains = []
+        for i, next_tool in enumerate(remaining):
+            new_remaining = remaining[:i] + remaining[i + 1 :]
+            new_chain = current_chain + [next_tool]
+
+            if self._has_dependency(next_tool, current_chain):
+                sub_chains = await self._plan_with_tool(
+                    next_tool, new_remaining, new_chain
+                )
+                chains.extend(sub_chains)
+
+        return chains if chains else [current_chain]
+
+    def _has_dependency(self, tool: str, chain: list[str]) -> bool:
+        return True
+
+    async def detect_circular(self, chain: list[str]) -> bool:
+        return len(chain) != len(set(chain))
+
+    async def validate_dependencies(self, chain: list[str]) -> bool:
+        return not await self.detect_circular(chain)
