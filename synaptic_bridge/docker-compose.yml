@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-synaptic-bridge-change-me}
+      - DUCKDB_PATH=/data/synaptic_bridge.duckdb
+      - SPIRE_SOCKET_PATH=/tmp/spire-agent.sock
+    volumes:
+      - ./data:/data
+      - /var/run/spire:/var/run/spire:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  cli:
+    build: .
+    volumes:
+      - ./data:/data
+    command: ["python", "-m", "synaptic_bridge.presentation.cli.main"]
+
+networks:
+  default:
+    name: synaptic-network

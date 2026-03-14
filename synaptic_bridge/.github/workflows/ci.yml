@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          
+      - name: Install dependencies
+        run: |
+          cd synaptic_bridge
+          pip install -e .
+          pip install pytest pytest-asyncio httpx
+          
+      - name: Run tests
+        run: |
+          cd synaptic_bridge
+          PYTHONPATH=. python -m pytest tests/ -v --cov=synaptic_bridge --cov-report=xml
+          
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./synaptic_bridge/coverage.xml
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          
+      - name: Install dependencies
+        run: |
+          cd synaptic_bridge
+          pip install ruff
+          
+      - name: Run linter
+        run: |
+          cd synaptic_bridge
+          ruff check .
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build Docker image
+        run: |
+          cd synaptic_bridge
+          docker build -t synaptic-bridge:test .
+          
+      - name: Test container health
+        run: |
+          cd synaptic_bridge
+          docker run -d --name test-app -p 8000:8000 synaptic-bridge:test
+          sleep 5
+          curl -f http://localhost:8000/health || exit 1
+          docker stop test-app
