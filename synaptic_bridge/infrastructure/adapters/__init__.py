@@ -118,7 +118,7 @@ class InMemoryCorrectionStore:
     async def save_correction(self, correction: Correction) -> None:
         self._corrections[correction.correction_id] = correction
 
-        pattern_key = tuple(sorted(correction.corrected_tools))
+        pattern_key = tuple(sorted([correction.corrected_tool]))
 
         if pattern_key in self._patterns:
             existing = self._patterns[pattern_key]
