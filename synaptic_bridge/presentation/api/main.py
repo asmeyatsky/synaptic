@@ -308,13 +308,16 @@ async def health_check():
 
     try:
         store = container.resolve("correction_store")
-        if hasattr(store, "_conn") and store._conn:
-            deps["duckdb"] = "healthy"
+        if hasattr(store, "_conn"):
+            if store._conn:
+                deps["correction_store"] = "healthy"
+            else:
+                deps["correction_store"] = "unhealthy"
+                overall_healthy = False
         else:
-            deps["duckdb"] = "unhealthy"
-            overall_healthy = False
+            deps["correction_store"] = "healthy"
     except Exception:
-        deps["duckdb"] = "unavailable"
+        deps["correction_store"] = "unavailable"
         overall_healthy = False
 
     try:

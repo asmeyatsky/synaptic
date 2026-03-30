@@ -18,10 +18,11 @@ from synaptic_bridge.presentation.api.main import app
 def _make_auth_header(session_id: str = "test-session") -> dict:
     """Create a valid JWT auth header for testing."""
     import jwt
+    from synaptic_bridge.presentation.api.main import get_secret_key
 
     token = jwt.encode(
         {"session_id": session_id, "agent_id": "test-agent"},
-        "",  # empty secret in TESTING=1 mode
+        get_secret_key(),  # use the same secret as the API
         algorithm="HS256",
     )
     return {"Authorization": f"Bearer {token}"}
@@ -79,9 +80,7 @@ class TestSessionEndpoints:
     async def test_create_session_validation(self):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            response = await client.post(
-                "/sessions", json={"agent_id": "", "created_by": "admin"}
-            )
+            response = await client.post("/sessions", json={"agent_id": "", "created_by": "admin"})
             assert response.status_code == 422
 
     @pytest.mark.asyncio
