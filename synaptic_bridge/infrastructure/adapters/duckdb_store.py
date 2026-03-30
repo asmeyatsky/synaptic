@@ -24,9 +24,7 @@ class DuckDBCorrectionStore:
     """
 
     def __init__(self, db_path: str | None = None):
-        self.db_path = db_path or os.environ.get(
-            "DUCKDB_PATH", "synaptic_bridge.duckdb"
-        )
+        self.db_path = db_path or os.environ.get("DUCKDB_PATH", "synaptic_bridge.duckdb")
         self._conn = duckdb.connect(self.db_path)
         self._init_schema()
 
@@ -188,9 +186,7 @@ class DuckDBCorrectionStore:
 
         return self._row_to_correction(row)
 
-    async def find_patterns(
-        self, intent_vector: tuple[float, ...]
-    ) -> list[CorrectionPattern]:
+    async def find_patterns(self, intent_vector: tuple[float, ...]) -> list[CorrectionPattern]:
         """Find patterns matching the given intent vector using cosine similarity."""
         rows = self._conn.execute("""
             SELECT * FROM correction_patterns
@@ -210,9 +206,7 @@ class DuckDBCorrectionStore:
 
         return patterns
 
-    def _cosine_similarity(
-        self, vec1: tuple[float, ...], vec2: tuple[float, ...]
-    ) -> float:
+    def _cosine_similarity(self, vec1: tuple[float, ...], vec2: tuple[float, ...]) -> float:
         if len(vec1) != len(vec2) or len(vec1) == 0:
             return 0.0
 
@@ -227,13 +221,15 @@ class DuckDBCorrectionStore:
 
     async def get_pattern_stats(self) -> dict:
         """Get statistics about stored patterns."""
-        total_patterns = self._conn.execute("""
+        patterns_result = self._conn.execute("""
             SELECT COUNT(*) FROM correction_patterns
-        """).fetchone()[0]
+        """).fetchone()
+        total_patterns = patterns_result[0] if patterns_result else 0
 
-        total_corrections = self._conn.execute("""
+        corrections_result = self._conn.execute("""
             SELECT COUNT(*) FROM corrections
-        """).fetchone()[0]
+        """).fetchone()
+        total_corrections = corrections_result[0] if corrections_result else 0
 
         top_patterns = self._conn.execute("""
             SELECT original_tools::JSON, corrected_tools::JSON, occurrence_count

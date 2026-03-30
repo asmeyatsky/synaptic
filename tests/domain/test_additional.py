@@ -243,10 +243,95 @@ class TestCorrectionPatternEntity:
         )
 
         similar_intent = pattern.matches_intent((1.0, 0.0, 0.0))
-        assert similar_intent == 1.0
+        assert similar_intent == pytest.approx(1.0, rel=1e-9)
 
         different_intent = pattern.matches_intent((0.0, 1.0, 0.0))
-        assert different_intent == 0.0
+        assert different_intent == pytest.approx(0.0, abs=1e-9)
+
+    def test_pattern_decay_fresh_pattern(self):
+        from synaptic_bridge.domain.entities import CorrectionPattern
+
+        pattern = CorrectionPattern(
+            pattern_id="pattern_1",
+            intent_vector=(1.0, 0.0, 0.0),
+            original_tools=("bad.tool",),
+            corrected_tools=("good.tool",),
+            occurrence_count=5,
+            avg_confidence_improvement=0.3,
+            last_updated=datetime.now(UTC),
+        )
+
+        decay = pattern._calculate_decay_factor()
+        assert decay == pytest.approx(1.0, rel=0.1)
+
+    def test_pattern_decay_older_pattern(self):
+        from synaptic_bridge.domain.entities import CorrectionPattern
+        from datetime import timedelta
+
+        old_date = datetime.now(UTC) - timedelta(days=60)
+        pattern = CorrectionPattern(
+            pattern_id="pattern_1",
+            intent_vector=(1.0, 0.0, 0.0),
+            original_tools=("bad.tool",),
+            corrected_tools=("good.tool",),
+            occurrence_count=5,
+            avg_confidence_improvement=0.3,
+            last_updated=old_date,
+        )
+
+        decay = pattern._calculate_decay_factor()
+        assert decay < 0.3
+
+    def test_undo_penalty(self):
+        from synaptic_bridge.domain.entities import CorrectionPattern
+
+        pattern_with_undos = CorrectionPattern(
+            pattern_id="pattern_1",
+            intent_vector=(1.0, 0.0, 0.0),
+            original_tools=("bad.tool",),
+            corrected_tools=("good.tool",),
+            occurrence_count=10,
+            avg_confidence_improvement=0.3,
+            last_updated=datetime.now(UTC),
+            total_undo_count=5,
+        )
+
+        pattern_without_undos = CorrectionPattern(
+            pattern_id="pattern_2",
+            intent_vector=(1.0, 0.0, 0.0),
+            original_tools=("bad.tool",),
+            corrected_tools=("good.tool",),
+            occurrence_count=10,
+            avg_confidence_improvement=0.3,
+            last_updated=datetime.now(UTC),
+            total_undo_count=0,
+        )
+
+        assert (
+            pattern_without_undos._calculate_undo_penalty()
+            > pattern_with_undos._calculate_undo_penalty()
+        )
+        assert pattern_without_undos._calculate_undo_penalty() == 1.0
+        assert pattern_with_undos._calculate_undo_penalty() == 0.5
+
+    def test_matches_intent_with_decay(self):
+        from synaptic_bridge.domain.entities import CorrectionPattern
+        from datetime import timedelta
+
+        old_date = datetime.now(UTC) - timedelta(days=60)
+        pattern = CorrectionPattern(
+            pattern_id="pattern_1",
+            intent_vector=(1.0, 0.0, 0.0),
+            original_tools=("bad.tool",),
+            corrected_tools=("good.tool",),
+            occurrence_count=5,
+            avg_confidence_improvement=0.3,
+            last_updated=old_date,
+        )
+
+        raw_similarity = 1.0
+        decayed_similarity = pattern.matches_intent((1.0, 0.0, 0.0))
+        assert decayed_similarity < raw_similarity
 
 
 class TestOPAPolicyEngine:
@@ -396,9 +481,7 @@ class TestDriftDetector:
 
         detector = DriftDetector(window_size=10, drift_threshold=0.3)
 
-        drift_score = await detector.check_drift(
-            "test_tool", {"execution_time_ms": 100}
-        )
+        drift_score = await detector.check_drift("test_tool", {"execution_time_ms": 100})
         assert isinstance(drift_score, float)
 
     @pytest.mark.asyncio

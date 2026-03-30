@@ -279,3 +279,51 @@ class TestInMemoryAdapters:
 
         events = await log.get_by_session("session_1")
         assert len(events) == 1
+
+
+class TestMultiHopChainPlanner:
+    """Tests for MultiHopChainPlanner dependency resolution."""
+
+    def test_has_dependency_returns_true_when_no_deps(self):
+        from synaptic_bridge.application.orchestration import MultiHopChainPlanner
+
+        planner = MultiHopChainPlanner(None)
+
+        assert planner._has_dependency("bash.execute", []) is True
+        assert planner._has_dependency("http.request", []) is True
+
+    def test_has_dependency_requires_prerequisite(self):
+        from synaptic_bridge.application.orchestration import MultiHopChainPlanner
+
+        planner = MultiHopChainPlanner(None)
+
+        assert planner._has_dependency("filesystem.write", []) is False
+        assert planner._has_dependency("filesystem.write", ["filesystem.read"]) is True
+        assert planner._has_dependency("database.query", []) is False
+        assert planner._has_dependency("database.query", ["database.write"]) is True
+
+    def test_has_dependency_partial_chain(self):
+        from synaptic_bridge.application.orchestration import MultiHopChainPlanner
+
+        planner = MultiHopChainPlanner(None)
+
+        assert planner._has_dependency("database.query", ["bash.execute"]) is False
+        assert planner._has_dependency("database.query", ["bash.execute", "database.write"]) is True
+
+    def test_add_dependency(self):
+        from synaptic_bridge.application.orchestration import MultiHopChainPlanner
+
+        planner = MultiHopChainPlanner(None)
+        planner.add_dependency("custom.tool", "custom.prereq")
+
+        assert planner._has_dependency("custom.tool", []) is False
+        assert planner._has_dependency("custom.tool", ["custom.prereq"]) is True
+
+    def test_get_dependencies(self):
+        from synaptic_bridge.application.orchestration import MultiHopChainPlanner
+
+        planner = MultiHopChainPlanner(None)
+
+        assert planner.get_dependencies("filesystem.write") == ["filesystem.read"]
+        assert planner.get_dependencies("bash.execute") == []
+        assert planner.get_dependencies("unknown.tool") == []

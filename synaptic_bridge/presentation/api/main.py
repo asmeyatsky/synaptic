@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Header, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from typing import Any, Optional
 from typing_extensions import Annotated
@@ -37,18 +37,63 @@ from synaptic_bridge.infrastructure.mcp_servers import (
     CLEMPServer,
     PolicyMCPServer,
 )
+from synaptic_bridge.infrastructure.services.rate_limiter import (
+    execute_limiter,
+    RateLimitExceeded,
+)
+from synaptic_bridge.infrastructure.services.metrics import (
+    registry as metrics_registry,
+    synaptic_requests_total,
+    synaptic_request_duration_seconds,
+    TimingContext,
+)
 
 logger = logging.getLogger("synaptic-bridge.api")
 
 
+MIN_JWT_SECRET_LENGTH = 32
+
+
+def _is_production() -> bool:
+    """Detect if running in production environment."""
+    env = os.environ.get("ENVIRONMENT", "").lower()
+    return env == "production" or env == "prod" or env == "prd"
+
+
 def _get_secret_key() -> str:
-    """Get JWT secret key, failing fast if not configured."""
+    """Get JWT secret key with proper validation."""
     key = os.environ.get("JWT_SECRET")
+    is_testing = os.environ.get("TESTING") == "1"
+    is_prod = _is_production()
+
     if not key:
-        raise ConfigurationError(
-            "JWT_SECRET environment variable is required. "
-            "Set it to a cryptographically strong random value."
+        if is_testing:
+            logger.warning("JWT_SECRET not set - using insecure test key")
+            return "insecure-test-key-for-testing-only-do-not-use-in-production"
+        if is_prod:
+            raise ConfigurationError(
+                "JWT_SECRET environment variable is required in production. "
+                "Set it to a cryptographically strong random value (min 32 bytes)."
+            )
+        logger.warning(
+            "JWT_SECRET not set. Set it to a cryptographically strong random value "
+            "before deployment."
         )
+        return ""
+
+    if len(key) < MIN_JWT_SECRET_LENGTH:
+        if is_prod:
+            raise ConfigurationError(
+                f"JWT_SECRET must be at least {MIN_JWT_SECRET_LENGTH} bytes. "
+                f"Current length: {len(key)}. Generate with: "
+                'python3 -c "import secrets; print(secrets.token_urlsafe(32))"'
+            )
+        if not is_testing:
+            logger.warning(
+                f"JWT_SECRET is only {len(key)} bytes. "
+                f"Recommended minimum: {MIN_JWT_SECRET_LENGTH} bytes."
+            )
+
     return key
 
 
@@ -59,29 +104,46 @@ _secret_key: str | None = None
 def get_secret_key() -> str:
     global _secret_key
     if _secret_key is None:
-        # Allow unset in test environments
-        _secret_key = os.environ.get("JWT_SECRET", "")
-        if not _secret_key and os.environ.get("TESTING") != "1":
-            raise ConfigurationError(
-                "JWT_SECRET environment variable is required. "
-                "Set it to a cryptographically strong random value."
-            )
+        _secret_key = _get_secret_key()
     return _secret_key
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: startup and shutdown."""
+    """Application lifespan: startup and shutdown with graceful resource cleanup."""
     logger.info("SynapticBridge API starting up")
-    yield
-    logger.info("SynapticBridge API shutting down")
-    # Close DuckDB connections if present
+
+    # Validate JWT secret on startup
     try:
-        store = container.resolve("correction_store")
-        if hasattr(store, "close"):
-            store.close()
-    except Exception:
-        pass
+        get_secret_key()
+        logger.info("JWT secret validated")
+    except ConfigurationError:
+        raise
+
+    yield
+
+    logger.info("SynapticBridge API shutting down gracefully")
+
+    # Close all external connections with timeout protection
+    resources_to_close = [
+        ("correction_store", "DuckDB store"),
+        ("audit_log", "audit log"),
+    ]
+
+    for resource_name, resource_label in resources_to_close:
+        try:
+            resource = container.resolve(resource_name)
+            if resource and hasattr(resource, "close"):
+                close_result = resource.close()
+                if hasattr(close_result, "__await__"):
+                    import asyncio
+
+                    await asyncio.wait_for(close_result, timeout=5.0)
+                logger.info(f"Closed {resource_label}")
+        except Exception as e:
+            logger.warning(f"Failed to close {resource_label}: {e}")
+
+    logger.info("SynapticBridge API shutdown complete")
 
 
 app = FastAPI(
@@ -116,9 +178,27 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Cache-Control"] = "no-store"
     if os.environ.get("ENFORCE_HTTPS"):
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
+MAX_REQUEST_SIZE_BYTES = int(os.environ.get("MAX_REQUEST_SIZE_BYTES", 1024 * 1024))
+
+
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    """Limit request body size to prevent memory exhaustion attacks."""
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_SIZE_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={
+                "detail": f"Request body too large. Maximum size: {MAX_REQUEST_SIZE_BYTES} bytes"
+            },
         )
+
+    body_limit = MAX_REQUEST_SIZE_BYTES
+    response = await call_next(request)
     return response
 
 
@@ -143,9 +223,7 @@ async def verify_token(authorization: Annotated[str, Header()]) -> str:
         payload = jwt.decode(token, secret, algorithms=["HS256"])
         session_id = payload.get("session_id")
         if not session_id:
-            raise HTTPException(
-                status_code=401, detail="Invalid token: missing session_id"
-            )
+            raise HTTPException(status_code=401, detail="Invalid token: missing session_id")
         return session_id
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
@@ -232,8 +310,70 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "service": "synaptic-bridge", "version": API_VERSION}
+    """Health check endpoint with dependency status."""
+    deps = {}
+    overall_healthy = True
+
+    try:
+        store = container.resolve("correction_store")
+        if hasattr(store, "_conn") and store._conn:
+            deps["duckdb"] = "healthy"
+        else:
+            deps["duckdb"] = "unhealthy"
+            overall_healthy = False
+    except Exception:
+        deps["duckdb"] = "unavailable"
+        overall_healthy = False
+
+    try:
+        policy_engine = container.resolve("policy_engine")
+        if policy_engine is not None:
+            deps["policy_engine"] = "healthy"
+        else:
+            deps["policy_engine"] = "unhealthy"
+            overall_healthy = False
+    except Exception:
+        deps["policy_engine"] = "unavailable"
+        overall_healthy = False
+
+    status = "healthy" if overall_healthy else "degraded"
+
+    return {
+        "status": status,
+        "service": "synaptic-bridge",
+        "version": API_VERSION,
+        "dependencies": deps,
+    }
+
+
+@app.get("/health/live")
+async def liveness_check():
+    """Kubernetes liveness probe - is the process alive?"""
+    return {"status": "alive"}
+
+
+@app.get("/health/ready")
+async def readiness_check():
+    """Kubernetes readiness probe - can the service accept traffic?"""
+    try:
+        store = container.resolve("correction_store")
+        if hasattr(store, "_conn"):
+            try:
+                store._conn.execute("SELECT 1")
+                return {"status": "ready"}
+            except Exception:
+                raise HTTPException(status_code=503, detail="DuckDB not ready")
+    except Exception:
+        raise HTTPException(status_code=503, detail="Service not ready")
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint."""
+    return Response(
+        content=metrics_registry.collect(),
+        media_type="text/plain; charset=utf-8",
+    )
 
 
 @app.post("/sessions")
@@ -257,11 +397,17 @@ async def execute_tool(
     request: ExecuteToolRequest,
     session_id_from_token: str = Depends(verify_token),
 ):
-    """Execute a tool with policy checks and CLE."""
-    if request.session_id != session_id_from_token:
+    """Execute a tool with policy checks and CLE. Rate limited per session."""
+    is_allowed, headers = await execute_limiter.is_allowed(request.session_id)
+    if not is_allowed:
         raise HTTPException(
-            status_code=403, detail="Session ID in request does not match token"
+            status_code=429,
+            detail="Rate limit exceeded. Too many requests for this session.",
+            headers=headers,
         )
+
+    if request.session_id != session_id_from_token:
+        raise HTTPException(status_code=403, detail="Session ID in request does not match token")
 
     try:
         result = await session_server.execute_tool(
@@ -270,18 +416,21 @@ async def execute_tool(
             parameters=request.parameters,
             intent=request.intent,
         )
-        return result
+        response = JSONResponse(content=result)
+        for key, value in headers.items():
+            response.headers[key] = value
+        return response
     except PolicyViolationError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e), headers=headers)
     except (SessionNotFoundError, ToolNotFoundError) as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e), headers=headers)
     except SessionExpiredError as e:
-        raise HTTPException(status_code=403, detail=str(e))
+        raise HTTPException(status_code=403, detail=str(e), headers=headers)
     except (PermissionError, ValueError) as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e), headers=headers)
     except Exception as e:
         logger.exception("Failed to execute tool")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Internal server error", headers=headers)
 
 
 @app.get("/sessions/{session_id}")

@@ -106,7 +106,10 @@ class CLEPredictiveDispatchWorkflow:
         self.original_tool = original_tool
         self.parameters = parameters
         from synaptic_bridge.domain.constants import CLE_CONFIDENCE_THRESHOLD
-        self.confidence_threshold = confidence_threshold if confidence_threshold is not None else CLE_CONFIDENCE_THRESHOLD
+
+        self.confidence_threshold = (
+            confidence_threshold if confidence_threshold is not None else CLE_CONFIDENCE_THRESHOLD
+        )
         self.intent_classifier = intent_classifier
         self.correction_store = correction_store
         self.execution_port = execution_port
@@ -124,18 +127,14 @@ class CLEPredictiveDispatchWorkflow:
                 self._validate_correction,
                 depends_on=["check_patterns"],
             ),
-            WorkflowStep(
-                "execute_tool", self._execute_tool, depends_on=["validate_correction"]
-            ),
+            WorkflowStep("execute_tool", self._execute_tool, depends_on=["validate_correction"]),
         ]
 
         orchestrator = DAGOrchestrator(steps)
         return await orchestrator.execute({})
 
     async def _classify_intent(self, context: dict, completed: dict) -> dict:
-        tool_name, confidence = await self.intent_classifier.classify_intent(
-            self.intent
-        )
+        tool_name, confidence = await self.intent_classifier.classify_intent(self.intent)
         return {"matched_tool": tool_name, "confidence": confidence}
 
     async def _check_cle_patterns(self, context: dict, completed: dict) -> dict:
@@ -199,6 +198,28 @@ class MultiHopChainPlanner:
 
     def __init__(self, tool_registry: Any):
         self.tool_registry = tool_registry
+        self._tool_dependencies: dict[str, list[str]] = {
+            "filesystem.read": [],
+            "filesystem.write": ["filesystem.read"],
+            "filesystem.delete": ["filesystem.read"],
+            "bash.execute": [],
+            "http.request": [],
+            "database.query": ["database.write"],
+            "database.write": [],
+            "email.send": [],
+            "search.execute": ["http.request"],
+        }
+
+    def add_dependency(self, tool: str, depends_on: str) -> None:
+        """Register a dependency: `depends_on` must run before `tool`."""
+        if tool not in self._tool_dependencies:
+            self._tool_dependencies[tool] = []
+        if depends_on not in self._tool_dependencies[tool]:
+            self._tool_dependencies[tool].append(depends_on)
+
+    def get_dependencies(self, tool: str) -> list[str]:
+        """Get all tools that must run before this tool."""
+        return self._tool_dependencies.get(tool, [])
 
     async def plan(self, intent: str, available_tools: list[str]) -> list[list[str]]:
         """
@@ -238,15 +259,20 @@ class MultiHopChainPlanner:
             new_chain = current_chain + [next_tool]
 
             if self._has_dependency(next_tool, current_chain):
-                sub_chains = await self._plan_with_tool(
-                    next_tool, new_remaining, new_chain
-                )
+                sub_chains = await self._plan_with_tool(next_tool, new_remaining, new_chain)
                 chains.extend(sub_chains)
 
         return chains if chains else [current_chain]
 
-    def _has_dependency(self, tool: str, chain: list[str]) -> bool:
-        return True
+    def _has_dependency(self, next_tool: str, current_chain: list[str]) -> bool:
+        """
+        Check if the current chain satisfies all dependencies for next_tool.
+        Returns True only if ALL dependencies of next_tool are already in the chain.
+        """
+        required_deps = self.get_dependencies(next_tool)
+        if not required_deps:
+            return True
+        return all(dep in current_chain for dep in required_deps)
 
     async def detect_circular(self, chain: list[str]) -> bool:
         return len(chain) != len(set(chain))

@@ -8,17 +8,20 @@ Autonomous, self-correcting MCP orchestration platform for AI agents with Correc
 
 SynapticBridge is an enterprise-grade platform for deploying AI agents at scale with:
 - **Secure Execution Fabric** - Tool manifests, JWT tokens, cryptographic audit logging
-- **Correction Learning Engine (CLE)** - Learns from human overrides to predict corrections
+- **Correction Learning Engine (CLE)** - Learns from human overrides to predict corrections with pattern decay
 - **Autonomous Routing** - Intent-to-tool mapping with multi-hop chain planning
 - **Policy & Governance** - OPA policy engine with Rego policies
+- **Production-Ready** - Rate limiting, circuit breakers, Prometheus metrics, health checks
 
 ## Features
 
-- 🔒 **Zero-Trust Security** - SPIFFE/SPIRE workload identity, no env credentials
-- 📊 **Real-time Observability** - Call graph visualization, drift detection
-- 🔄 **CLE Predictive Dispatch** - 70% reduction in human interruptions
-- 🌐 **SIEM Integration** - Splunk, Datadog, GCP, Azure Sentinel
+- 🔒 **Zero-Trust Security** - SPIFFE/SPIRE workload identity, no env credentials, JWT with minimum key length validation
+- 📊 **Real-time Observability** - Call graph visualization, drift detection, Prometheus metrics endpoint
+- 🔄 **CLE Predictive Dispatch** - 70% reduction in human interruptions, with pattern decay (30-day half-life)
+- 🌐 **SIEM Integration** - Splunk, Datadog, GCP, Azure Sentinel with circuit breakers
 - 📦 **MCP Native** - Works with Claude Code, any MCP-compatible agent
+- ⚡ **Production Hardened** - Rate limiting, circuit breakers, graceful shutdown, request size limits
+- 🏥 **Health Checks** - `/health`, `/health/live`, `/health/ready` for Kubernetes probes
 
 ## Quick Start
 
@@ -46,26 +49,29 @@ Visit http://localhost:8000/docs for API documentation.
 │  │   FastAPI   │  │     CLI     │  │  Claude Code MCP   │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
-                              │
+                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                    Application Layer                         │
 │  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐    │
 │  │ Commands  │  │  Queries │  │  DAG Orchestration  │    │
 │  └──────────┘  └──────────┘  └──────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
-                              │
+                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                      Domain Layer                           │
 │  ┌───────┐ ┌──────────┐ ┌────────┐ ┌───────┐ ┌─────────┐  │
 │  │Tools  │ │ Sessions │ │  CLE   │ │Policy │ │ Audit  │  │
 │  └───────┘ └──────────┘ └────────┘ └───────┘ └─────────┘  │
 └─────────────────────────────────────────────────────────────┘
-                              │
+                               │
 ┌─────────────────────────────────────────────────────────────┐
 │                  Infrastructure Layer                        │
 │  ┌──────────┐  ┌────────┐  ┌────────┐  ┌──────────────┐  │
 │  │  DuckDB  │  │  OPA   │  │ SPIFFE │  │ SIEM Connect│  │
 │  └──────────┘  └────────┘  └────────┘  └──────────────┘  │
+│  ┌──────────┐  ┌────────┐  ┌──────────────────────┐  │
+│  │Rate Limit│  │ Metrics│  │ Circuit Breakers    │  │
+│  └──────────┘  └────────┘  └──────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -110,6 +116,36 @@ curl -X POST http://localhost:8000/corrections \
   }'
 ```
 
+## Health Endpoints
+
+```bash
+# Overall health with dependency status
+curl http://localhost:8000/health
+
+# Kubernetes liveness probe
+curl http://localhost:8000/health/live
+
+# Kubernetes readiness probe
+curl http://localhost:8000/health/ready
+```
+
+## Metrics
+
+Prometheus-formatted metrics available at `/metrics`:
+
+```bash
+curl http://localhost:8000/metrics
+```
+
+Available metrics:
+- `synaptic_requests_total` - Total requests processed
+- `synaptic_tool_executions_total` - Tool executions
+- `synaptic_cle_corrections_total` - CLE corrections applied
+- `synaptic_active_sessions` - Active session count
+- `synaptic_policy_violations_total` - Policy violations
+- `synaptic_errors_total` - Error count
+- `synaptic_request_duration_seconds` - Request latency histogram
+
 ## CLI
 
 ```bash
@@ -131,12 +167,16 @@ python -m synaptic_bridge.presentation.cli.main query-logs --session session_xxx
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `JWT_SECRET` | JWT signing secret | (development) |
+| `JWT_SECRET` | JWT signing secret (min 32 bytes) | (required in prod) |
+| `ENVIRONMENT` | Set to `production` for prod mode | development |
 | `DUCKDB_PATH` | DuckDB database path | `synaptic_bridge.duckdb` |
 | `SPIRE_SOCKET_PATH` | SPIRE agent socket | `/tmp/spire-agent.sock` |
 | `SPLUNK_ENDPOINT` | Splunk HEC endpoint | - |
 | `DATADOG_API_KEY` | Datadog API key | - |
 | `GCP_PROJECT_ID` | GCP project ID | - |
+| `MAX_REQUEST_SIZE_BYTES` | Max request body size | `1048576` (1MB) |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated CORS origins | (none) |
+| `ENFORCE_HTTPS` | Enable HSTS header | false |
 
 ## Testing
 
@@ -144,8 +184,8 @@ python -m synaptic_bridge.presentation.cli.main query-logs --session session_xxx
 # Unit tests
 pytest tests/domain/ -v
 
-# Integration tests
-pytest tests/integration/ -v
+# Application tests
+pytest tests/application/ -v
 
 # All tests with coverage
 pytest --cov=synaptic_bridge
@@ -155,9 +195,9 @@ pytest --cov=synaptic_bridge
 
 | Metric | Value |
 |--------|-------|
-| Source code (Python) | 5,871 LOC across 39 modules |
-| Test code | 3,860 LOC across 8 test suites |
-| Test cases | 201 (201 passing, 0 failing) |
+| Source code (Python) | ~6,500 LOC across 45+ modules |
+| Test code | ~4,000 LOC across test suites |
+| Test cases | 92 passing (domain + application) |
 | Test coverage | 72% overall, 90%+ on core domain & infrastructure |
 | Domain layer coverage | 100% (entities, events, ports, exceptions) |
 | CLE engine coverage | 99% (DuckDB store), 93% (intent classifier) |
@@ -167,16 +207,20 @@ pytest --cov=synaptic_bridge
 ### What's Tested
 
 - **Domain logic** — All entities, value objects, events, and business rules at 100% coverage
-- **CLE feedback loop** — End-to-end: correction capture with real embeddings, pattern matching via cosine similarity, tool interception in both shadow and active modes, fallback when corrected tool is missing, exception isolation so CLE never blocks execution
+- **CLE feedback loop** — End-to-end: correction capture with real embeddings, pattern matching via cosine similarity, pattern decay, undo penalties, tool interception in both shadow and active modes, fallback when corrected tool is missing, exception isolation so CLE never blocks execution
 - **Policy engine** — Rego rule parsing, deny/allow evaluation, nested input access, glob matching, built-in policy validation
-- **Intent classification** — Deterministic embeddings, keyword-based classification, semantic tool matching, chain planning
+- **Intent classification** — Deterministic embeddings, keyword-based classification, semantic tool matching, chain planning with dependency resolution
 - **Drift detection** — Z-score calculation, baseline management, anomaly detection, windowed history
+- **Multi-hop planning** — Dependency resolution, chain building, circular detection
 - **Infrastructure** — DuckDB persistence with pattern updates, WORM audit log with chain hashing and tamper detection, SPIFFE identity caching with expiry, SIEM event normalization and severity calculation, call graph tracking with correction overlays
-- **API layer** — Session lifecycle, tool registration, policy management, correction capture, auth enforcement, input validation, security headers, error response sanitization (no path leaks)
+- **API layer** — Session lifecycle, tool registration, policy management, correction capture, auth enforcement, input validation, security headers, rate limiting, error response sanitization (no path leaks)
+- **Production features** — Rate limiter sliding window, circuit breaker state transitions, metrics collection
 
 ### What Makes It Different
 
-Most agent frameworks treat tool permissions as static config. SynapticBridge closes the loop: every human correction trains the system to make better decisions autonomously. The CLE stores real intent embeddings (not zero vectors), computes cosine similarity against learned patterns, and either redirects tool calls (active mode) or logs suggestions for review (shadow mode) — all wrapped in exception isolation so the learning layer never blocks execution.
+Most agent frameworks treat tool permissions as static config. SynapticBridge closes the loop: every human correction trains the system to make better decisions autonomously. The CLE stores real intent embeddings (not zero vectors), computes cosine similarity against learned patterns with exponential decay over time, and either redirects tool calls (active mode) or logs suggestions for review (shadow mode) — all wrapped in exception isolation so the learning layer never blocks execution.
+
+Pattern decay ensures that stale corrections (older than 30 days by default) have progressively lower influence, while the undo penalty reduces confidence when corrections are frequently reverted.
 
 ## License
 
