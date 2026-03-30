@@ -6,7 +6,6 @@ Actual Rego policy evaluation for dispatch-time policy checks.
 """
 
 import fnmatch
-import json
 import logging
 import re
 from typing import Any

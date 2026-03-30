@@ -5,9 +5,10 @@ Following skill2026.md Rule 4 - Mandatory Testing Coverage.
 Tests for all layers with appropriate mocking.
 """
 
-import pytest
 import asyncio
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+
+import pytest
 
 
 class TestToolManifest:
@@ -15,9 +16,9 @@ class TestToolManifest:
 
     def test_create_tool_manifest(self):
         from synaptic_bridge.domain.entities import (
-            ToolManifest,
-            CapabilityType,
             AuditLevel,
+            CapabilityType,
+            ToolManifest,
         )
 
         manifest = ToolManifest(
@@ -39,9 +40,9 @@ class TestToolManifest:
 
     def test_to_toml(self):
         from synaptic_bridge.domain.entities import (
-            ToolManifest,
-            CapabilityType,
             AuditLevel,
+            CapabilityType,
+            ToolManifest,
         )
 
         manifest = ToolManifest(
@@ -234,12 +235,12 @@ class TestInMemoryAdapters:
 
     @pytest.mark.asyncio
     async def test_tool_registry(self):
-        from synaptic_bridge.infrastructure.adapters import InMemoryToolRegistry
         from synaptic_bridge.domain.entities import (
-            ToolManifest,
-            CapabilityType,
             AuditLevel,
+            CapabilityType,
+            ToolManifest,
         )
+        from synaptic_bridge.infrastructure.adapters import InMemoryToolRegistry
 
         registry = InMemoryToolRegistry()
 
@@ -263,8 +264,8 @@ class TestInMemoryAdapters:
 
     @pytest.mark.asyncio
     async def test_audit_log(self):
-        from synaptic_bridge.infrastructure.adapters import InMemoryAuditLog
         from synaptic_bridge.domain.events import ToolCalledEvent
+        from synaptic_bridge.infrastructure.adapters import InMemoryAuditLog
 
         log = InMemoryAuditLog()
 

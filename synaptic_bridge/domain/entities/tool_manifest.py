@@ -8,8 +8,7 @@ Immutable domain model following skill2026.md Rule 3.
 """
 
 from dataclasses import dataclass, field, replace
-from datetime import datetime, UTC
-from typing import FrozenSet
+from datetime import datetime
 from enum import Enum
 
 from ...domain.events import DomainEvent
@@ -32,7 +31,7 @@ class AuditLevel(Enum):
 class ToolManifest:
     tool_name: str
     version: str
-    capabilities: FrozenSet[CapabilityType]
+    capabilities: frozenset[CapabilityType]
     scope: str
     ttl_seconds: int
     network_egress: bool

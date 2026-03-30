@@ -11,24 +11,24 @@ import os
 
 os.environ["TESTING"] = "1"
 
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
-from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine, BuiltInPolicies
-from synaptic_bridge.infrastructure.adapters.intent_classifier import (
-    IntentClassifier,
-    SemanticToolMatcher,
-)
-from synaptic_bridge.infrastructure.adapters.drift_detector import DriftDetector
+import pytest
+
 from synaptic_bridge.domain.entities import (
+    AuditLevel,
+    CapabilityType,
     Policy,
     PolicyEffect,
     PolicyScope,
     ToolManifest,
-    CapabilityType,
-    AuditLevel,
 )
-
+from synaptic_bridge.infrastructure.adapters.drift_detector import DriftDetector
+from synaptic_bridge.infrastructure.adapters.intent_classifier import (
+    IntentClassifier,
+    SemanticToolMatcher,
+)
+from synaptic_bridge.infrastructure.adapters.opa_engine import BuiltInPolicies, OPAPolicyEngine
 
 # ---------------------------------------------------------------------------
 # OPA Policy Engine

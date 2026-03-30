@@ -5,8 +5,7 @@ Following skill2026.md Rule 2 - Interface-First Development.
 Ports are defined in the domain layer, implementations are in infrastructure.
 """
 
-from typing import Protocol, Any
-from collections.abc import AsyncIterator
+from typing import Any, Protocol
 
 
 class ToolRegistryPort(Protocol):
@@ -20,9 +19,7 @@ class ExecutionPort(Protocol):
     async def create_session(self, agent_id: str, created_by: str) -> Any: ...
     async def get_session(self, session_id: str) -> Any | None: ...
     async def validate_token(self, token: str) -> bool: ...
-    async def execute_tool(
-        self, session: Any, tool_name: str, parameters: dict
-    ) -> Any: ...
+    async def execute_tool(self, session: Any, tool_name: str, parameters: dict) -> Any: ...
 
 
 class CorrectionStorePort(Protocol):

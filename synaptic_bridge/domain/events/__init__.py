@@ -5,7 +5,7 @@ Following skill2026.md event-driven communication patterns.
 """
 
 from dataclasses import dataclass, field, fields
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 

@@ -5,19 +5,17 @@ Following PRD: Immutable, cryptographically signed audit events written to appen
 WORM storage option with GCS/S3 backend for enterprise.
 """
 
-import os
-import json
 import hashlib
 import hmac
-import stat
+import json
 import logging
-from datetime import datetime, UTC
-from typing import Any
-from dataclasses import dataclass, asdict
+import os
+import stat
+from dataclasses import asdict, dataclass
 from enum import Enum
 
 from synaptic_bridge.domain.entities import AuditEvent
-from synaptic_bridge.domain.exceptions import ConfigurationError, AuditIntegrityError
+from synaptic_bridge.domain.exceptions import ConfigurationError
 
 logger = logging.getLogger("synaptic-bridge.worm")
 
@@ -85,12 +83,12 @@ class WORMAuditLog:
         """Load the current sequence number from storage."""
         seq_file = os.path.join(self.storage_path, ".sequence")
         if os.path.exists(seq_file):
-            with open(seq_file, "r") as f:
+            with open(seq_file) as f:
                 self._sequence = int(f.read().strip())
 
         last_event_file = os.path.join(self.storage_path, ".last_hash")
         if os.path.exists(last_event_file):
-            with open(last_event_file, "r") as f:
+            with open(last_event_file) as f:
                 self._previous_hash = f.read().strip()
 
     def _save_sequence(self) -> None:

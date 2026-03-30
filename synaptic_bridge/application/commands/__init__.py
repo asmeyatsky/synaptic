@@ -5,40 +5,39 @@ Command handlers for SynapticBridge operations.
 Following CQRS pattern.
 """
 
-from dataclasses import dataclass
-from datetime import datetime, UTC
-from typing import Any
 import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
+from synaptic_bridge.domain.constants import (
+    CLE_CONFIDENCE_THRESHOLD,
+    CLE_SHADOW_MODE,
+    DEFAULT_TTL_SECONDS,
+)
 from synaptic_bridge.domain.entities import (
-    ExecutionSession,
-    SessionStatus,
-    ToolManifest,
-    CapabilityType,
     AuditLevel,
+    CapabilityType,
     Correction,
+    ExecutionSession,
     Policy,
     PolicyEffect,
     PolicyScope,
-)
-from synaptic_bridge.domain.ports import (
-    ExecutionPort,
-    ToolRegistryPort,
-    CorrectionStorePort,
-    PolicyEnginePort,
-    AuditLogPort,
-    IntentClassifierPort,
-)
-from synaptic_bridge.domain.constants import (
-    DEFAULT_TTL_SECONDS,
-    CLE_CONFIDENCE_THRESHOLD,
-    CLE_SHADOW_MODE,
+    ToolManifest,
 )
 from synaptic_bridge.domain.exceptions import (
-    SessionNotFoundError,
-    SessionExpiredError,
-    ToolNotFoundError,
     PolicyViolationError,
+    SessionExpiredError,
+    SessionNotFoundError,
+    ToolNotFoundError,
+)
+from synaptic_bridge.domain.ports import (
+    AuditLogPort,
+    CorrectionStorePort,
+    ExecutionPort,
+    IntentClassifierPort,
+    PolicyEnginePort,
+    ToolRegistryPort,
 )
 
 
@@ -55,9 +54,7 @@ class CreateSessionCommand:
     ) -> ExecutionSession:
         session = await execution_port.create_session(self.agent_id, self.created_by)
 
-        await audit_log.write(
-            session.domain_events[0] if session.domain_events else None
-        )
+        await audit_log.write(session.domain_events[0] if session.domain_events else None)
 
         return session
 
@@ -194,9 +191,7 @@ class ExecuteToolCommand:
                 # CLE failure must never block execution
                 pass
 
-        result = await execution_port.execute_tool(
-            session, effective_tool, self.parameters
-        )
+        result = await execution_port.execute_tool(session, effective_tool, self.parameters)
 
         from synaptic_bridge.domain.events import ToolCalledEvent
 

@@ -5,7 +5,6 @@ Lightweight metrics collection for observability.
 Provides counters, gauges, and histograms in Prometheus format.
 """
 
-import asyncio
 import time
 from dataclasses import dataclass
 from typing import Any

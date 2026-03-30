@@ -8,8 +8,7 @@ Immutable domain model following skill2026.md Rule 3.
 """
 
 from dataclasses import dataclass, field, replace
-from datetime import datetime, UTC
-from typing import FrozenSet
+from datetime import UTC, datetime
 from enum import Enum
 
 from ...domain.events import DomainEvent
@@ -35,7 +34,7 @@ class Policy:
     rego_code: str
     effect: PolicyEffect
     scope: PolicyScope
-    tags: FrozenSet[str]
+    tags: frozenset[str]
     version: str
     enabled: bool
     created_at: datetime

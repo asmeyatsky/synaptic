@@ -4,9 +4,9 @@ Additional Unit Tests
 Extended test coverage for SynapticBridge domain entities and infrastructure.
 """
 
+from datetime import UTC, datetime
+
 import pytest
-import asyncio
-from datetime import datetime, UTC
 
 
 class TestToolCallEntity:
@@ -265,8 +265,9 @@ class TestCorrectionPatternEntity:
         assert decay == pytest.approx(1.0, rel=0.1)
 
     def test_pattern_decay_older_pattern(self):
-        from synaptic_bridge.domain.entities import CorrectionPattern
         from datetime import timedelta
+
+        from synaptic_bridge.domain.entities import CorrectionPattern
 
         old_date = datetime.now(UTC) - timedelta(days=60)
         pattern = CorrectionPattern(
@@ -315,8 +316,9 @@ class TestCorrectionPatternEntity:
         assert pattern_with_undos._calculate_undo_penalty() == 0.5
 
     def test_matches_intent_with_decay(self):
-        from synaptic_bridge.domain.entities import CorrectionPattern
         from datetime import timedelta
+
+        from synaptic_bridge.domain.entities import CorrectionPattern
 
         old_date = datetime.now(UTC) - timedelta(days=60)
         pattern = CorrectionPattern(
@@ -339,8 +341,8 @@ class TestOPAPolicyEngine:
 
     @pytest.mark.asyncio
     async def test_add_and_list_policies(self):
-        from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine
         from synaptic_bridge.domain.entities import Policy, PolicyEffect, PolicyScope
+        from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine
 
         engine = OPAPolicyEngine()
 
@@ -366,8 +368,8 @@ class TestOPAPolicyEngine:
 
     @pytest.mark.asyncio
     async def test_evaluate_allow_policy(self):
-        from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine
         from synaptic_bridge.domain.entities import Policy, PolicyEffect, PolicyScope
+        from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine
 
         engine = OPAPolicyEngine()
 
@@ -392,8 +394,8 @@ class TestOPAPolicyEngine:
 
     @pytest.mark.asyncio
     async def test_evaluate_disabled_policy(self):
-        from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine
         from synaptic_bridge.domain.entities import Policy, PolicyEffect, PolicyScope
+        from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine
 
         engine = OPAPolicyEngine()
 
@@ -418,8 +420,8 @@ class TestOPAPolicyEngine:
 
     @pytest.mark.asyncio
     async def test_remove_policy(self):
-        from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine
         from synaptic_bridge.domain.entities import Policy, PolicyEffect, PolicyScope
+        from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine
 
         engine = OPAPolicyEngine()
 

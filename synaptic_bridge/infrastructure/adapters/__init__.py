@@ -5,28 +5,29 @@ Following skill2026.md Rule 2 - Interface-First Development.
 Adapters implement ports defined in domain layer.
 """
 
+import hashlib
 import os
 import uuid
-import hashlib
-import jwt
 from dataclasses import replace
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
+
+import jwt
 
 from synaptic_bridge.domain.constants import (
     DEFAULT_TTL_SECONDS,
     EMBEDDING_DIM,
 )
-from synaptic_bridge.domain.exceptions import ConfigurationError
 from synaptic_bridge.domain.entities import (
-    ExecutionSession,
-    SessionStatus,
-    ToolManifest,
+    AuditEvent,
     Correction,
     CorrectionPattern,
+    ExecutionSession,
     Policy,
-    AuditEvent,
+    SessionStatus,
+    ToolManifest,
 )
+from synaptic_bridge.domain.exceptions import ConfigurationError
 
 
 def _get_jwt_secret() -> str:

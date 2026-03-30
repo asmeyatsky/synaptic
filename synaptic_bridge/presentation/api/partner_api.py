@@ -5,14 +5,11 @@ Following PRD Phase 4: Partner API for ISVs (Independent Software Vendors).
 REST API for partners to integrate with SynapticBridge.
 """
 
-from fastapi import FastAPI, HTTPException, Header, Depends
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-from typing import Any, Optional
-from datetime import datetime, UTC
-import hashlib
 import secrets
+from datetime import UTC, datetime
 
+from fastapi import Depends, FastAPI, Header, HTTPException
+from pydantic import BaseModel
 
 app = FastAPI(title="SynapticBridge Partner API", version="1.0.0")
 
@@ -124,7 +121,7 @@ async def list_partner_tools(
 
 @app.get("/partners/usage", tags=["Analytics"])
 async def get_partner_usage(
-    period: Optional[str] = "30d",
+    period: str | None = "30d",
     partner: PartnerAPIKey = Depends(verify_partner_api_key),
 ) -> UsageReport:
     """Get usage statistics for a partner."""

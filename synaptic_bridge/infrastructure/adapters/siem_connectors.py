@@ -4,13 +4,11 @@ SIEM Connectors
 Following PRD: SIEM/Logging Connectors - Splunk, Datadog, GCP Cloud Logging, Azure Sentinel.
 """
 
-import os
-import json
 import logging
+import os
 from abc import ABC, abstractmethod
-from datetime import datetime, UTC
-from typing import Any
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -162,7 +160,7 @@ class GCPLoggingConnector(SIEMConnector):
             return True
 
         payload = {
-            "logName": f"projects/synaptic-bridge/logs/audit",
+            "logName": "projects/synaptic-bridge/logs/audit",
             "resource": {
                 "type": "global",
                 "labels": {

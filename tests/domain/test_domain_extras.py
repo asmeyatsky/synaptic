@@ -8,65 +8,65 @@ import os
 
 os.environ["TESTING"] = "1"
 
-import pytest
 from dataclasses import FrozenInstanceError
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from synaptic_bridge.domain.constants import (
+    API_VERSION,
+    CLE_CONFIDENCE_THRESHOLD,
+    CORRECTION_ID_PREFIX,
+    DEFAULT_PAGE_SIZE,
     DEFAULT_TTL_SECONDS,
+    DRIFT_MIN_SAMPLES,
+    DRIFT_THRESHOLD,
+    DRIFT_WINDOW_SIZE,
+    EMBEDDING_DIM,
+    EVENT_ID_PREFIX,
+    MAX_PAGE_SIZE,
     MAX_TTL_SECONDS,
     MIN_TTL_SECONDS,
-    EMBEDDING_DIM,
-    CLE_CONFIDENCE_THRESHOLD,
-    PATTERN_SIMILARITY_THRESHOLD,
-    DRIFT_WINDOW_SIZE,
-    DRIFT_THRESHOLD,
-    DRIFT_MIN_SAMPLES,
-    SPIFFE_CACHE_TTL_SECONDS,
-    DEFAULT_PAGE_SIZE,
-    MAX_PAGE_SIZE,
-    SESSION_ID_PREFIX,
-    CORRECTION_ID_PREFIX,
     PATTERN_ID_PREFIX,
+    PATTERN_SIMILARITY_THRESHOLD,
     POLICY_ID_PREFIX,
+    SESSION_ID_PREFIX,
+    SPIFFE_CACHE_TTL_SECONDS,
     TOOL_ID_PREFIX,
-    EVENT_ID_PREFIX,
-    API_VERSION,
-)
-from synaptic_bridge.domain.exceptions import (
-    SynapticBridgeError,
-    ConfigurationError,
-    SessionNotFoundError,
-    SessionExpiredError,
-    ToolNotFoundError,
-    PolicyViolationError,
-    AuthenticationError,
-    AuthorizationError,
-    PatternNotFoundError,
-    AuditIntegrityError,
-    RegoEvaluationError,
-)
-from synaptic_bridge.domain.events import (
-    DomainEvent,
-    ToolCalledEvent,
-    CorrectionCapturedEvent,
-    PolicyViolationEvent,
-    SessionStartedEvent,
-    SessionEndedEvent,
-    DriftDetectedEvent,
 )
 from synaptic_bridge.domain.entities import (
+    AuditLevel,
+    CapabilityType,
+    Correction,
     ExecutionSession,
-    SessionStatus,
     Policy,
     PolicyEffect,
     PolicyScope,
+    SessionStatus,
     ToolManifest,
-    CapabilityType,
-    AuditLevel,
-    Correction,
 )
-
+from synaptic_bridge.domain.events import (
+    CorrectionCapturedEvent,
+    DomainEvent,
+    DriftDetectedEvent,
+    PolicyViolationEvent,
+    SessionEndedEvent,
+    SessionStartedEvent,
+    ToolCalledEvent,
+)
+from synaptic_bridge.domain.exceptions import (
+    AuditIntegrityError,
+    AuthenticationError,
+    AuthorizationError,
+    ConfigurationError,
+    PatternNotFoundError,
+    PolicyViolationError,
+    RegoEvaluationError,
+    SessionExpiredError,
+    SessionNotFoundError,
+    SynapticBridgeError,
+    ToolNotFoundError,
+)
 
 # ---------------------------------------------------------------------------
 # Constants

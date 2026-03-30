@@ -5,12 +5,10 @@ Following PRD Phase 4: Public CLE pattern marketplace for org-to-org pattern sha
 Allows exporting/importing correction patterns between organizations.
 """
 
-import json
 import hashlib
 import uuid
-from datetime import datetime, UTC
-from typing import Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -202,9 +200,7 @@ class CLEPatternMarketplace:
         if not listing:
             raise ValueError("Listing not found")
 
-        if org_id != listing.owner_org and listing_id not in self._purchases.get(
-            org_id, set()
-        ):
+        if org_id != listing.owner_org and listing_id not in self._purchases.get(org_id, set()):
             raise ValueError("Not purchased")
 
         export_data = {
@@ -231,7 +227,7 @@ class CLEPatternMarketplace:
         listing = self.create_listing(
             org_id=org_id,
             pattern_id=f"imported_{uuid.uuid4().hex[:8]}",
-            name=f"Imported Pattern",
+            name="Imported Pattern",
             description="Imported from marketplace",
             from_tool=pattern.get("from_tool", ""),
             to_tool=pattern.get("to_tool", ""),
@@ -248,13 +244,13 @@ class CLEPatternMarketplace:
 
     def get_org_listings(self, org_id: str) -> list[PatternListing]:
         """Get all listings owned by an organization."""
-        return [l for l in self._listings.values() if l.owner_org == org_id]
+        return [listing for listing in self._listings.values() if listing.owner_org == org_id]
 
     def get_statistics(self) -> dict:
         """Get marketplace statistics."""
         total_listings = len(self._listings)
         total_reviews = sum(len(r) for r in self._reviews.values())
-        avg_rating = sum(l.rating for l in self._listings.values()) / max(
+        avg_rating = sum(listing.rating for listing in self._listings.values()) / max(
             total_listings, 1
         )
 
@@ -262,6 +258,6 @@ class CLEPatternMarketplace:
             "total_listings": total_listings,
             "total_reviews": total_reviews,
             "average_rating": avg_rating,
-            "free_listings": sum(1 for l in self._listings.values() if l.price == 0),
-            "paid_listings": sum(1 for l in self._listings.values() if l.price > 0),
+            "free_listings": sum(1 for listing in self._listings.values() if listing.price == 0),
+            "paid_listings": sum(1 for listing in self._listings.values() if listing.price > 0),
         }

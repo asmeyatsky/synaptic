@@ -12,10 +12,11 @@ States:
 
 import asyncio
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -99,9 +100,7 @@ class CircuitBreaker:
             self._failure_count += 1
             self._last_failure_time = time.time()
 
-            if self._state == CircuitState.HALF_OPEN:
-                self._transition_to(CircuitState.OPEN)
-            elif (
+            if self._state == CircuitState.HALF_OPEN or (
                 self._state == CircuitState.CLOSED
                 and self._failure_count >= self.config.failure_threshold
             ):

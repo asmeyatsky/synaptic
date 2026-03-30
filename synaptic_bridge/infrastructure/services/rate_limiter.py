@@ -8,8 +8,8 @@ For production, use Redis-based rate limiting with slowapi.
 import asyncio
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 
 @dataclass

@@ -6,10 +6,9 @@ Credential injection via SPIFFE/SPIRE - never stored in env variables.
 """
 
 import os
-import json
 import time
-from typing import Any
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -29,7 +28,8 @@ class SPIFFEController:
     """
     SPIFFE/SPIRE workload identity controller.
 
-    Following PRD: Credential Injection via SPIFFE/SPIRE workload identity - never stored in env variables.
+    Following PRD: Credential Injection via SPIFFE/SPIRE workload identity -
+    never stored in env variables.
     """
 
     def __init__(self, spire_socket_path: str = "/tmp/spire-agent.sock"):
@@ -38,9 +38,7 @@ class SPIFFEController:
         self._cached_identity: WorkloadIdentity | None = None
         self._cache_ttl = 3600
 
-    async def get_workload_identity(
-        self, audience: str = "synaptic-bridge"
-    ) -> WorkloadIdentity:
+    async def get_workload_identity(self, audience: str = "synaptic-bridge") -> WorkloadIdentity:
         """Get workload identity from SPIRE agent."""
         if self._cached_identity and self._is_identity_valid(self._cached_identity):
             return self._cached_identity
@@ -99,9 +97,7 @@ class CredentialInjector:
     def __init__(self, spiffe_controller: SPIFFEController | None = None):
         self.spiffe = spiffe_controller or SPIFFEController()
 
-    async def inject_credentials(
-        self, tool_name: str, context: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def inject_credentials(self, tool_name: str, context: dict[str, Any]) -> dict[str, Any]:
         """Inject credentials into tool execution context."""
         identity = await self.spiffe.get_workload_identity(tool_name)
 

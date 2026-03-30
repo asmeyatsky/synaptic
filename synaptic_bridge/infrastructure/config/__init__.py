@@ -6,7 +6,8 @@ Wires implementations to ports at composition root.
 """
 
 import os
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 class DependencyContainer:
@@ -46,18 +47,18 @@ def create_container() -> DependencyContainer:
     Uses DriftDetector for drift detection.
     """
     from synaptic_bridge.infrastructure.adapters import (
+        InMemoryAuditLog,
         InMemoryExecutionAdapter,
         InMemoryToolRegistry,
-        InMemoryAuditLog,
     )
+    from synaptic_bridge.infrastructure.adapters.drift_detector import DriftDetector
     from synaptic_bridge.infrastructure.adapters.duckdb_store import (
         DuckDBCorrectionStore,
     )
-    from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine
     from synaptic_bridge.infrastructure.adapters.intent_classifier import (
         IntentClassifier,
     )
-    from synaptic_bridge.infrastructure.adapters.drift_detector import DriftDetector
+    from synaptic_bridge.infrastructure.adapters.opa_engine import OPAPolicyEngine
 
     container = DependencyContainer()
 

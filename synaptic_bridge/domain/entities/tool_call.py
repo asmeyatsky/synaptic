@@ -8,11 +8,11 @@ Immutable domain model following skill2026.md Rule 3.
 """
 
 from dataclasses import dataclass, field, replace
-from datetime import datetime, UTC
-from typing import Any
+from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 
-from ...domain.events import DomainEvent
+from ...domain.events import DomainEvent, ToolCalledEvent
 
 
 class ToolCallStatus(Enum):
@@ -91,9 +91,7 @@ class ToolCall:
             "corrected_tool": self.corrected_tool,
             "status": self.status.value,
             "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat()
-            if self.completed_at
-            else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "was_corrected": self.was_corrected,
             "error": self.error,
         }

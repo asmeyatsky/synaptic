@@ -17,7 +17,7 @@ class ExecutionToken:
     expires_at: Any
 
     def is_expired(self) -> bool:
-        from datetime import datetime, UTC
+        from datetime import UTC, datetime
 
         return datetime.now(UTC) >= self.expires_at
 

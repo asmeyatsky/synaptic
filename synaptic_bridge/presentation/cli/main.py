@@ -9,11 +9,8 @@ Following PRD: CLI tooling for tool registration, policy management, log inspect
 import argparse
 import asyncio
 import json
-import sys
-from typing import Optional
 
 from synaptic_bridge.infrastructure.config import create_container
-from synaptic_bridge.infrastructure.adapters.opa_engine import BuiltInPolicies
 
 
 class SynapticBridgeCLI:
@@ -136,8 +133,8 @@ class SynapticBridgeCLI:
 
     async def query_logs(
         self,
-        session_id: Optional[str] = None,
-        event_type: Optional[str] = None,
+        session_id: str | None = None,
+        event_type: str | None = None,
         limit: int = 100,
     ) -> list[dict]:
         """Query audit logs."""

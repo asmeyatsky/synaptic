@@ -12,37 +12,34 @@ import os
 os.environ["TESTING"] = "1"
 os.environ["WORM_SECRET_KEY"] = "test-worm-secret-key"
 
-import json
 import stat
 import time
+from datetime import UTC, datetime
 
 import pytest
-from datetime import datetime, UTC
 
+from synaptic_bridge.domain.entities import AuditEvent, Correction
+from synaptic_bridge.domain.exceptions import ConfigurationError
 from synaptic_bridge.infrastructure.adapters.duckdb_store import DuckDBCorrectionStore
-from synaptic_bridge.infrastructure.adapters.worm_audit import (
-    WORMAuditLog,
-    WORMStorageBackend,
+from synaptic_bridge.infrastructure.adapters.siem_connectors import (
+    DatadogConnector,
+    SIEMDispatcher,
+    SIEMEvent,
+    SplunkConnector,
 )
 from synaptic_bridge.infrastructure.adapters.spiffe_controller import (
-    SPIFFEController,
-    MockSPIFFEController,
-    WorkloadIdentity,
     CredentialInjector,
+    MockSPIFFEController,
+    SPIFFEController,
+    WorkloadIdentity,
+)
+from synaptic_bridge.infrastructure.adapters.worm_audit import (
+    WORMAuditLog,
 )
 from synaptic_bridge.infrastructure.services.call_graph import CallGraphService
 from synaptic_bridge.infrastructure.services.pattern_marketplace import (
     CLEPatternMarketplace,
 )
-from synaptic_bridge.infrastructure.adapters.siem_connectors import (
-    SplunkConnector,
-    DatadogConnector,
-    SIEMEvent,
-    SIEMDispatcher,
-)
-from synaptic_bridge.domain.entities import Correction, AuditEvent
-from synaptic_bridge.domain.exceptions import ConfigurationError
-
 
 # ---------------------------------------------------------------------------
 # DuckDB Correction Store

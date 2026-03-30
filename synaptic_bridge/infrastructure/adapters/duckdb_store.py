@@ -4,11 +4,10 @@ DuckDB Storage for Correction Learning Engine
 Following PRD: CLE pattern store using DuckDB (embedded) with BigQuery sync capability.
 """
 
-import os
 import json
+import os
 import uuid
-from datetime import datetime, UTC
-from typing import Any
+from datetime import UTC, datetime
 
 import duckdb
 

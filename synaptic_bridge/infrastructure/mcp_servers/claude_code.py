@@ -8,9 +8,9 @@ Provides native MCP server for Claude Code to connect to SynapticBridge.
 import asyncio
 import json
 import sys
-from typing import Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class MCPMessageType(Enum):
@@ -66,10 +66,6 @@ class ClaudeCodeMCPServer:
     def initialize(self) -> None:
         """Initialize the MCP server with tools and resources."""
         from synaptic_bridge.infrastructure.config import create_container
-        from synaptic_bridge.infrastructure.adapters.intent_classifier import (
-            IntentClassifier,
-        )
-        from synaptic_bridge.infrastructure.adapters.drift_detector import DriftDetector
 
         container = create_container()
 
@@ -217,9 +213,7 @@ class ClaudeCodeMCPServer:
             tool_registry = container.resolve("tool_registry")
             policy_engine = container.resolve("policy_engine")
             audit_log = container.resolve("audit_log")
-            return await cmd.execute(
-                execution_port, tool_registry, policy_engine, audit_log
-            )
+            return await cmd.execute(execution_port, tool_registry, policy_engine, audit_log)
 
         return handler
 
@@ -279,15 +273,12 @@ class ClaudeCodeMCPServer:
                 filters["session_id"] = params["session_id"]
             events = await audit_log.query(filters)
             limit = params.get("limit", 100)
-            return [
-                {"event_id": e.event_id, "type": e.event_type} for e in events[:limit]
-            ]
+            return [{"event_id": e.event_id, "type": e.event_type} for e in events[:limit]]
 
         return handler
 
     def _sessions_resource_handler(self, container):
         async def handler() -> str:
-            execution_port = container.resolve("execution_port")
             return json.dumps({"note": "Use synaptic_create_session tool"})
 
         return handler
@@ -296,9 +287,7 @@ class ClaudeCodeMCPServer:
         async def handler() -> str:
             tool_registry = container.resolve("tool_registry")
             tools = await tool_registry.list_all()
-            return json.dumps(
-                [{"name": t.tool_name, "version": t.version} for t in tools]
-            )
+            return json.dumps([{"name": t.tool_name, "version": t.version} for t in tools])
 
         return handler
 
@@ -354,15 +343,12 @@ class ClaudeCodeMCPServer:
                 return {
                     "jsonrpc": "2.0",
                     "id": msg_id,
-                    "result": {
-                        "content": [{"type": "text", "text": json.dumps(result)}]
-                    },
+                    "result": {"content": [{"type": "text", "text": json.dumps(result)}]},
                 }
 
         if method == "resources/list":
             resources = [
-                {"uri": uri, "mimeType": info["mimeType"]}
-                for uri, info in self._resources.items()
+                {"uri": uri, "mimeType": info["mimeType"]} for uri, info in self._resources.items()
             ]
             return {"jsonrpc": "2.0", "id": msg_id, "result": {"resources": resources}}
 
@@ -397,9 +383,7 @@ class ClaudeCodeMCPServer:
 
         while True:
             try:
-                line = await asyncio.get_event_loop().run_in_executor(
-                    None, sys.stdin.readline
-                )
+                line = await asyncio.get_event_loop().run_in_executor(None, sys.stdin.readline)
                 if not line:
                     break
 

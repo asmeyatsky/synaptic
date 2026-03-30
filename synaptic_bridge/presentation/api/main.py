@@ -6,46 +6,39 @@ REST API for SynapticBridge MCP orchestration platform.
 
 import logging
 import os
-import uuid
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Header, Depends, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator
-from typing import Any, Optional
-from typing_extensions import Annotated
 
 from synaptic_bridge.domain.constants import (
     API_VERSION,
-    DEFAULT_TTL_SECONDS,
     DEFAULT_PAGE_SIZE,
+    DEFAULT_TTL_SECONDS,
     MAX_PAGE_SIZE,
 )
 from synaptic_bridge.domain.exceptions import (
     ConfigurationError,
     PolicyViolationError,
-    SessionNotFoundError,
     SessionExpiredError,
+    SessionNotFoundError,
     ToolNotFoundError,
-    SynapticBridgeError,
 )
 from synaptic_bridge.infrastructure.config import create_container
 from synaptic_bridge.infrastructure.mcp_servers import (
-    SessionMCPServer,
-    ToolMCPServer,
     CLEMPServer,
     PolicyMCPServer,
-)
-from synaptic_bridge.infrastructure.services.rate_limiter import (
-    execute_limiter,
-    RateLimitExceeded,
+    SessionMCPServer,
+    ToolMCPServer,
 )
 from synaptic_bridge.infrastructure.services.metrics import (
     registry as metrics_registry,
-    synaptic_requests_total,
-    synaptic_request_duration_seconds,
-    TimingContext,
+)
+from synaptic_bridge.infrastructure.services.rate_limiter import (
+    execute_limiter,
 )
 
 logger = logging.getLogger("synaptic-bridge.api")
@@ -197,7 +190,6 @@ async def limit_request_size(request: Request, call_next):
             },
         )
 
-    body_limit = MAX_REQUEST_SIZE_BYTES
     response = await call_next(request)
     return response
 
@@ -387,7 +379,7 @@ async def create_session(request: CreateSessionRequest):
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to create session")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -428,7 +420,7 @@ async def execute_tool(
         raise HTTPException(status_code=403, detail=str(e), headers=headers)
     except (PermissionError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e), headers=headers)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to execute tool")
         raise HTTPException(status_code=500, detail="Internal server error", headers=headers)
 
@@ -465,7 +457,7 @@ async def register_tool(
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to register tool")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -502,7 +494,7 @@ async def capture_correction(
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to capture correction")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -525,7 +517,7 @@ async def add_policy(
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to add policy")
         raise HTTPException(status_code=500, detail="Internal server error")
 

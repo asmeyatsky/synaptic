@@ -2,18 +2,18 @@
 Correction Entity
 
 Represents a human override captured by the CLE.
-Following PRD: Records original intent, inferred context, called tool, corrected tool, correction metadata, and operator identity.
+Following PRD: Records original intent, inferred context, called tool,
+corrected tool, correction metadata, and operator identity.
 
 Immutable domain model following skill2026.md Rule 3.
 """
 
 import math
 from dataclasses import dataclass, field, replace
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from ...domain.events import DomainEvent
-
 
 PATTERN_DECAY_HALF_LIFE_DAYS = 30.0
 

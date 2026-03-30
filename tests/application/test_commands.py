@@ -8,39 +8,39 @@ import os
 
 os.environ["TESTING"] = "1"
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, UTC
 
 from synaptic_bridge.application.commands import (
+    AddPolicyCommand,
+    CaptureCorrectionCommand,
     CreateSessionCommand,
     ExecuteToolCommand,
-    CaptureCorrectionCommand,
-    AddPolicyCommand,
     RegisterToolCommand,
 )
-from synaptic_bridge.infrastructure.adapters import (
-    InMemoryExecutionAdapter,
-    InMemoryToolRegistry,
-    InMemoryCorrectionStore,
-    InMemoryPolicyEngine,
-    InMemoryAuditLog,
-)
 from synaptic_bridge.domain.entities import (
-    CapabilityType,
     AuditLevel,
-    ToolManifest,
-    SessionStatus,
+    CapabilityType,
+    Policy,
     PolicyEffect,
     PolicyScope,
-    Policy,
+    SessionStatus,
+    ToolManifest,
 )
 from synaptic_bridge.domain.exceptions import (
-    SessionNotFoundError,
-    SessionExpiredError,
-    ToolNotFoundError,
     PolicyViolationError,
+    SessionExpiredError,
+    SessionNotFoundError,
+    ToolNotFoundError,
 )
-
+from synaptic_bridge.infrastructure.adapters import (
+    InMemoryAuditLog,
+    InMemoryCorrectionStore,
+    InMemoryExecutionAdapter,
+    InMemoryPolicyEngine,
+    InMemoryToolRegistry,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers

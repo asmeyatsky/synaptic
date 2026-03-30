@@ -3,22 +3,22 @@ SynapticBridge Infrastructure Layer
 """
 
 from .adapters import (
-    InMemoryExecutionAdapter,
-    InMemoryToolRegistry,
-    InMemoryCorrectionStore,
-    InMemoryPolicyEngine,
     InMemoryAuditLog,
+    InMemoryCorrectionStore,
+    InMemoryExecutionAdapter,
+    InMemoryPolicyEngine,
+    InMemoryToolRegistry,
     MockIntentClassifier,
-)
-from .mcp_servers import (
-    SessionMCPServer,
-    ToolMCPServer,
-    CLEMPServer,
-    PolicyMCPServer,
 )
 from .config import (
     DependencyContainer,
     create_container,
+)
+from .mcp_servers import (
+    CLEMPServer,
+    PolicyMCPServer,
+    SessionMCPServer,
+    ToolMCPServer,
 )
 
 __all__ = [

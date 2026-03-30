@@ -2,14 +2,14 @@
 Execution Session Entity
 
 Represents a short-lived agent session with execution token.
-Following PRD: Each agent session receives a short-lived execution token (JWT, 15-minute default TTL).
+Following PRD: Each agent session receives a short-lived execution token
+(JWT, 15-minute default TTL).
 
 Immutable domain model following skill2026.md Rule 3.
 """
 
 from dataclasses import dataclass, field, replace
-from datetime import datetime, UTC
-from typing import FrozenSet
+from datetime import UTC, datetime
 from enum import Enum
 
 from ...domain.events import DomainEvent
@@ -35,8 +35,6 @@ class ExecutionSession:
     domain_events: tuple[DomainEvent, ...] = field(default=())
 
     def __post_init__(self):
-        from datetime import datetime
-
         if isinstance(self.expires_at, (int, float)):
             pass
         elif self.expires_at <= self.started_at:

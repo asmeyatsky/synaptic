@@ -6,7 +6,7 @@ Provides test fixtures and mock configurations for SynapticBridge tests.
 
 import os
 import sys
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock
 
 os.environ["TESTING"] = "1"
 os.environ["JWT_SECRET"] = "test-jwt-secret-for-testing-only-minimum-length"
@@ -74,7 +74,7 @@ class MockDuckDB:
 
 def pytest_configure(config):
     """Configure pytest with mock duckdb if not available."""
-    try:
-        import duckdb
-    except ImportError:
+    import importlib.util
+
+    if importlib.util.find_spec("duckdb") is None:
         sys.modules["duckdb"] = MockDuckDB()

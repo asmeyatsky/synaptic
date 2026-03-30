@@ -9,29 +9,29 @@ import os
 
 os.environ["TESTING"] = "1"
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, UTC
 
 from synaptic_bridge.application.commands import (
-    ExecuteToolCommand,
     CaptureCorrectionCommand,
-)
-from synaptic_bridge.infrastructure.adapters import (
-    InMemoryExecutionAdapter,
-    InMemoryToolRegistry,
-    InMemoryCorrectionStore,
-    InMemoryPolicyEngine,
-    InMemoryAuditLog,
-    MockIntentClassifier,
-)
-from synaptic_bridge.domain.entities import (
-    CapabilityType,
-    AuditLevel,
-    ToolManifest,
-    CorrectionPattern,
+    ExecuteToolCommand,
 )
 from synaptic_bridge.domain.constants import EMBEDDING_DIM
-
+from synaptic_bridge.domain.entities import (
+    AuditLevel,
+    CapabilityType,
+    CorrectionPattern,
+    ToolManifest,
+)
+from synaptic_bridge.infrastructure.adapters import (
+    InMemoryAuditLog,
+    InMemoryCorrectionStore,
+    InMemoryExecutionAdapter,
+    InMemoryPolicyEngine,
+    InMemoryToolRegistry,
+    MockIntentClassifier,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers

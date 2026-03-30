@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from synaptic_bridge.domain.entities import (
-    ExecutionSession,
-    ToolManifest,
-    Policy,
     AuditEvent,
     CorrectionPattern,
+    ExecutionSession,
+    Policy,
+    ToolManifest,
 )
 
 

@@ -8,22 +8,19 @@ Each bounded context exposed as MCP server with:
 - Prompts = reusable interaction patterns
 """
 
-import uuid
 from typing import Any
 
 from synaptic_bridge.application.commands import (
+    AddPolicyCommand,
+    CaptureCorrectionCommand,
     CreateSessionCommand,
     ExecuteToolCommand,
-    CaptureCorrectionCommand,
-    AddPolicyCommand,
     RegisterToolCommand,
 )
 from synaptic_bridge.application.queries import (
     GetSessionQuery,
-    ListToolsQuery,
-    GetToolQuery,
     ListPoliciesQuery,
-    QueryAuditLogQuery,
+    ListToolsQuery,
 )
 
 

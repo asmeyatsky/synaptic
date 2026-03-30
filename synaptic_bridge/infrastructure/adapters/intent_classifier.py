@@ -7,7 +7,6 @@ Real embedding-based intent classification for tool matching.
 
 import hashlib
 import math
-from typing import Any
 
 
 class IntentClassifier:

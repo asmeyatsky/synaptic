@@ -5,11 +5,9 @@ Following PRD: Runtime behavior compared against declared signatures; statistica
 Statistical monitoring of tool runtime behavior against declared manifest signatures.
 """
 
-import json
 import statistics
-import uuid
 from collections import deque
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from synaptic_bridge.domain.entities import ToolManifest

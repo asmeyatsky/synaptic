@@ -5,12 +5,13 @@ End-to-end tests for SynapticBridge API.
 """
 
 import os
+
 import pytest
-import asyncio
 
 os.environ["TESTING"] = "1"
 
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
+
 from synaptic_bridge.presentation.api.main import app
 
 

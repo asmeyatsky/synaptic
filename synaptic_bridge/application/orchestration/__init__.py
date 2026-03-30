@@ -6,10 +6,9 @@ Following skill2026.md Rule 7 - Parallel-Safe Orchestration.
 """
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
-
-from synaptic_bridge.domain.entities import CorrectionPattern
+from typing import Any
 
 
 @dataclass
@@ -138,7 +137,6 @@ class CLEPredictiveDispatchWorkflow:
         return {"matched_tool": tool_name, "confidence": confidence}
 
     async def _check_cle_patterns(self, context: dict, completed: dict) -> dict:
-        classification = completed["classify_intent"]
         embedding = await self.intent_classifier.get_embedding(self.intent)
 
         patterns = await self.correction_store.find_patterns(embedding)
