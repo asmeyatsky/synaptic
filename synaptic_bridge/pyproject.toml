@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synaptic-bridge"
+version = "1.0.0"
+description = "SynapticBridge MCP Orchestration Platform with Correction Learning Engine"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.100.0,<1.0.0",
+    "uvicorn>=0.23.0,<1.0.0",
+    "pydantic>=2.0.0,<3.0.0",
+    "pyjwt>=2.8.0,<3.0.0",
+    "duckdb>=0.9.0,<2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0,<9.0.0",
+    "pytest-asyncio>=0.21.0,<1.0.0",
+    "pytest-cov>=4.0.0,<6.0.0",
+    "httpx>=0.24.0,<1.0.0",
+    "ruff>=0.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["synaptic_bridge*"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "S",    # flake8-bandit (security)
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+]
+ignore = [
+    "S101",  # allow assert in tests
+    "S105",  # allow hardcoded password (false positives on test fixtures)
+    "S106",  # allow hardcoded password argument
+    "B008",  # allow function calls in defaults (FastAPI Depends)
+    "B904",  # exception chaining (common in FastAPI HTTPException handlers)
+    "B905",  # zip strict (false positive for equal-length iterables)
+    "S110",  # try-except-pass (intentional for non-critical failures)
+    "S108",  # insecure temp file (configurable path, not hardcoded in code)
+    "E402",  # module level import not at top (conditional imports for lazy loading)
+    "E501",  # line too long (test assertions)
+    "S311",  # random usage (intentional for deterministic embeddings)
+    "S324",  # MD5 usage (intentional for deterministic hashing)
+    "S104",  # binding to all interfaces (dev server acceptable)
+    "B007",  # unused loop variable (acceptable when variable is needed for iteration)
+    "F841",  # unused local variable (stubs for interface compliance)
+    "SIM103",  # simplify return condition (explicit is clearer)
+    "SIM108",  # ternary (explicit if-else is clearer)
+    "SIM118",  # dict.keys() usage (explicit is fine)
+    "SIM105",  # contextlib.suppress (explicit try-except is clearer)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["synaptic_bridge"]
