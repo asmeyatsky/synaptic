@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SynapticBridge Admin Portal</title>
+    <link rel="stylesheet" href="/portal/static/styles.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <circle cx="16" cy="16" r="14" stroke="#6366f1" stroke-width="2"/>
+                        <circle cx="16" cy="16" r="6" fill="#6366f1"/>
+                        <path d="M16 4v4M16 24v4M4 16h4M24 16h4" stroke="#6366f1" stroke-width="2"/>
+                    </svg>
+                    <h1>SynapticBridge</h1>
+                </div>
+                <div class="header-status">
+                    <span class="status-dot" id="connection-status"></span>
+                    <span id="api-version"></span>
+                </div>
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab active" data-tab="dashboard">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M3 3h6v6H3V3zm8 0h6v6h-6V3zm-8 8h6v6H3v-6zm8 0h6v6h-6v-6z"/>
+                </svg>
+                Dashboard
+            </button>
+            <button class="tab" data-tab="activity">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12zm1-7h-2v4h2v-4z"/>
+                </svg>
+                Activity
+            </button>
+            <button class="tab" data-tab="corrections">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                    <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 013 3 2 2 0 01-2 2H9v2h2a4 4 0 010 8H6a4 4 0 010-8h2V9H6a2 2 0 01-2-2z"/>
+                </svg>
+                Corrections
+            </button>
+            <button class="tab" data-tab="policies">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/>
+                </svg>
+                Policies
+            </button>
+            <button class="tab" data-tab="access">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"/>
+                </svg>
+                Access Requests
+            </button>
+        </nav>
+
+        <main class="content">
+            <div id="dashboard" class="tab-content active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Active Sessions</div>
+                        <div class="stat-value" id="stat-sessions">-</div>
+                        <div class="stat-change positive">Real-time</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Corrections Today</div>
+                        <div class="stat-value" id="stat-corrections">-</div>
+                        <div class="stat-change" id="correction-trend">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">CLE Accuracy</div>
+                        <div class="stat-value" id="stat-accuracy">-</div>
+                        <div class="stat-change positive">Pattern Match</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Active Policies</div>
+                        <div class="stat-value" id="stat-policies">-</div>
+                        <div class="stat-change">Enforced</div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>System Health</h3>
+                        <div class="health-list" id="health-list">
+                            <div class="health-item">
+                                <span class="health-label">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3>Recent Activity</h3>
+                        <div class="activity-feed" id="recent-activity">
+                            <div class="activity-item">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card full-width">
+                    <h3>Metrics Overview</h3>
+                    <div class="metrics-chart" id="metrics-chart">
+                        <div class="chart-placeholder">
+                            <p>Request volume over time</p>
+                            <div class="chart-bars" id="chart-bars"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="activity" class="tab-content">
+                <div class="card full-width">
+                    <div class="card-header">
+                        <h3>Session Activity</h3>
+                        <div class="filters">
+                            <select id="activity-filter">
+                                <option value="all">All Activity</option>
+                                <option value="session">Sessions</option>
+                                <option value="tool">Tool Executions</option>
+                                <option value="correction">Corrections</option>
+                            </select>
+                            <input type="search" id="activity-search" placeholder="Search sessions...">
+                        </div>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Type</th>
+                                <th>Agent ID</th>
+                                <th>Details</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activity-table">
+                            <tr><td colspan="5">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="corrections" class="tab-content">
+                <div class="card full-width">
+                    <div class="card-header">
+                        <h3>Correction Learning Engine</h3>
+                        <div class="correction-stats">
+                            <span>Pending Review: <strong id="pending-count">0</strong></span>
+                            <span>Approved: <strong id="approved-count">0</strong></span>
+                            <span>Rejected: <strong id="rejected-count">0</strong></span>
+                        </div>
+                    </div>
+                    
+                    <div class="correction-tabs">
+                        <button class="correction-tab active" data-correction-tab="pending">Pending</button>
+                        <button class="correction-tab" data-correction-tab="approved">Approved</button>
+                        <button class="correction-tab" data-correction-tab="rejected">Rejected</button>
+                    </div>
+
+                    <div id="corrections-list" class="corrections-list">
+                        <div class="correction-item">
+                            <div class="correction-info">
+                                <p>Loading corrections...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="policies" class="tab-content">
+                <div class="card full-width">
+                    <div class="card-header">
+                        <h3>Policy Management</h3>
+                        <button class="btn btn-primary" id="add-policy-btn">+ Add Policy</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Resource</th>
+                                <th>Action</th>
+                                <th>Effect</th>
+                                <th>Conditions</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="policies-table">
+                            <tr><td colspan="7">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card" id="policy-detail" style="display: none;">
+                    <h3>Policy Details</h3>
+                    <div id="policy-detail-content"></div>
+                </div>
+            </div>
+
+            <div id="access" class="tab-content">
+                <div class="card full-width">
+                    <div class="card-header">
+                        <h3>Access Requests</h3>
+                        <button class="btn btn-primary" id="new-request-btn">+ New Request</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Requester</th>
+                                <th>Tool</th>
+                                <th>Justification</th>
+                                <th>Status</th>
+                                <th>Requested</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="requests-table">
+                            <tr><td colspan="6">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Modal</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="/portal/static/app.js"></script>
+</body>
+</html>

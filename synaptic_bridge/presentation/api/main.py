@@ -543,3 +543,24 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal server error"},
     )
+
+
+from synaptic_bridge.presentation.portal.routes import router as portal_router
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+
+portal_static_path = os.path.join(os.path.dirname(__file__), "..", "portal", "static")
+portal_html_path = os.path.join(os.path.dirname(__file__), "..", "portal", "index.html")
+if os.path.exists(portal_static_path):
+    app.mount("/portal/static", StaticFiles(directory=portal_static_path), name="portal_static")
+
+app.include_router(portal_router)
+
+
+@app.get("/portal")
+async def serve_portal():
+    """Serve the admin portal."""
+    if os.path.exists(portal_html_path):
+        return FileResponse(portal_html_path)
+    raise HTTPException(status_code=404, detail="Portal not found")
